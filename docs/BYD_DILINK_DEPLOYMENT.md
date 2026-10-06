@@ -178,3 +178,185 @@ adb logcat -s BYD_CarControl
 | **أوامر السيارة تنفذ لكن بدون صوت رد** | محرك TTS النظامي لا يدعم اللغة العربية | التطبيق يدعم محركات TTS المتعددة؛ تأكد من تفعيل حزمة الصوت العربية في إعدادات Android (Text-to-Speech Settings > Google Speech Recognition & Synthesis / Arabic). |
 | **الاستعلامات العامة تفشل** | عدم توفر اتصال بالإنترنت في شاشة السيارة | الاستعلامات العامة (الطقس، الأخبار، ويكيبيديا) تتطلب إنترنت (شريحة SIM مدمجة أو نقطة اتصال Wi-Fi). أوامر السيارة (المسار A) والمحادثات الأساسية (المسار C) تعمل 100% بدون إنترنت. |
 | **تعذر الاتصال بـ ADB عبر Wi-Fi** | الشاشة والحاسوب على شبكات مختلفة أو جدار حماية | تأكد من أن الحاسوب والسيارة متصلان بنفس الشبكة تماماً (نقطة اتصال هاتف واحدة). |
+
+---
+---
+
+# 🇬🇧 English Section: Vehicle Deployment & Installation Manual
+
+---
+
+## 1. Overview & Hardware Compatibility
+
+This voice assistant is purpose-built for **BYD DiLink** smart infotainment head units across generations. It operates as a cohesive stack integrating native Android (Kotlin) with an embedded natural language engine (Python via Chaquopy) adhering to an offline-first architecture.
+
+### Supported Hardware & Systems:
+
+| DiLink Generation | Base Android Version | System SoC | Compatible BYD Models (Examples) | Support Status |
+| :--- | :--- | :--- | :--- | :--- |
+| **DiLink 3.0** | Android 9.0 (Pie) / 10 | Qualcomm Snapdragon 665 / 625 | Atto 3 (Early batches), Qin Plus, Song Pro, Tang EV | Fully Supported (minSdk 28) |
+| **DiLink 4.0 (4G/5G)** | Android 10 / 11 | Qualcomm Snapdragon 665 / 690 / 8155 | Atto 3, Han EV/DM-i, Tang DM-i, Destroyer 05, Dolphin | Fully Supported & Recommended |
+| **DiLink 5.0** | Android 12 / 13 | Qualcomm Snapdragon 8155 / 8295 | BYD Seal, Song L, Denza D9/N7, Yangwang U8 | Fully Supported |
+
+---
+
+## 2. Enabling Developer Options & USB Debugging
+
+To sideload APK packages (`.apk`) or inspect runtime logs (`logcat`), developer options and USB debugging must be enabled on the vehicle screen:
+
+### Standard Method:
+1. Turn on the vehicle or place the power switch in **ACC / ON** mode.
+2. Open **Vehicle Settings** from the main home screen.
+3. Navigate to **System** > **About System / Software Version**.
+4. Locate the **Build Number / Version Number** field.
+5. Tap the Build Number **7 consecutive times rapidly**.
+6. A toast message will appear: *"You are now a developer!"*.
+7. Return back one step; a new menu entry **Developer Options** will now appear.
+8. Enter Developer Options and enable:
+   - **USB Debugging**
+   - **Install via USB** (if present)
+   - **Stay Awake** (optional, prevents screen sleep during development)
+
+### Alternative Engineering Codes (If Menu is Hidden):
+On select regional DiLink firmwares where developer settings are factory hidden, open the phone dialer or settings search box and enter:
+- `*#*#2846579#*#*` (Opens the ProjectMenu to configure USB Ports Information).
+- Or search directly for "Developer Options" via the system keyboard settings search bar.
+
+> ⚠️ **Safety Warning:** Do not alter CAN-bus parameters or vehicle critical safety flags from engineering menus. Only enable ADB debugging and authorized application sideloading.
+
+---
+
+## 3. Vosk Offline Arabic Acoustic Model Setup
+
+The speech recognition engine (`STTEngine.kt`) relies on a lightweight, embedded Arabic acoustic model from **Vosk**:
+
+### Model Download:
+1. Download the official compact Arabic model:
+   - **Name:** `vosk-model-small-ar-0.22`
+   - **URL:** [https://alphacephei.com/vosk/models/vosk-model-small-ar-0.22.zip](https://alphacephei.com/vosk/models/vosk-model-small-ar-0.22.zip)
+   - **Size:** Approximately 45 MB (extremely compact, ideal for DiLink vehicle memory).
+
+### Placing the Model in Project Assets Prior to Build:
+1. Extract the downloaded zip file.
+2. Rename the extracted folder to `model-ar` (or copy its contents directly).
+3. Place it under the Android assets path:
+   ```text
+   android/app/src/main/assets/model-ar/
+   ├── am/
+   ├── conf/
+   │   ├── mfcc.conf
+   │   └── model.conf
+   ├── graph/
+   │   ├── HCLG.fst
+   │   ├── disambig_tid.int
+   │   └── phones/
+   └── ivector/
+   ```
+4. On first application launch on the vehicle screen, `STTEngine` automatically unpacks the model into internal app storage via `StorageService.unpack(context, "model-ar", "model")` and initializes offline speech recognition.
+
+---
+
+## 4. Application Installation Methods
+
+### Method 1: Installation via USB Flash Drive - Fastest & Simplest
+1. After building `app-release.apk` (or `app-debug.apk`):
+2. Prepare a USB flash drive formatted as **FAT32** or **NTFS**.
+3. Copy `app-release.apk` directly onto the root of the flash drive.
+4. Plug the flash drive into the vehicle's front console **USB Data Port** (typically indicated by a white icon or the primary USB Type-C port, not charge-only ports).
+5. Open the native **File Manager** app on the DiLink touchscreen.
+6. Open the external USB drive and tap `app-release.apk`.
+7. Accept installation from unknown sources if prompted, then tap **Install**.
+
+---
+
+### Method 2: Wireless Installation via ADB over Wi-Fi
+Ideal for active development and continuous updates without handling flash drives:
+
+1. Connect both the laptop and DiLink vehicle head unit to the same Wi-Fi network (e.g., via a smartphone personal hotspot).
+2. Open vehicle Wi-Fi settings to identify the screen's IP address (e.g., `192.168.43.150`).
+3. On your laptop, open a terminal (PowerShell / Terminal) and execute:
+   ```bash
+   # Connect to the vehicle head unit on default ADB port 5555
+   adb connect 192.168.43.150:5555
+
+   # Verify connection status
+   adb devices
+   ```
+4. Once the vehicle appears as an authorized `device`, deploy the APK directly:
+   ```bash
+   # Install application, replacing existing build and preserving data
+   adb install -r android/app/build/outputs/apk/release/app-release.apk
+   ```
+5. Grant audio recording permission programmatically to avoid in-drive UI permission dialogs:
+   ```bash
+   adb shell pm grant com.byd.voiceassistant android.permission.RECORD_AUDIO
+   ```
+
+---
+
+### Method 3: Direct Installation via USB Cable (ADB over USB)
+1. Connect laptop to the DiLink front data port using a data-capable USB cable (Type-A to Type-A or Type-C to Type-C).
+2. Accept the USB Debugging authorization prompt on the DiLink display, checking "Always allow from this computer".
+3. Run the installation command:
+   ```bash
+   adb install -r android/app/build/outputs/apk/release/app-release.apk
+   ```
+
+---
+
+## 5. Audio Focus & Permissions
+
+### 1. Audio Focus & Ducking:
+- `CarControlBridge` and audio engines request transient audio focus with ducking:
+  ```kotlin
+  AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK
+  ```
+- **Automatic Behavior:** When Push-to-Talk is triggered or when the assistant speaks an answer:
+  - Vehicle music/radio automatically ducks (lowers volume) so the driver's voice is clearly captured.
+  - The assistant speaks synthesized Arabic speech crisply through the front speakers.
+  - Upon completion of speech, media volume smoothly ramps back to its previous volume level.
+
+### 2. Vehicle Microphone Matrix:
+- Requires `android.permission.RECORD_AUDIO`.
+- On DiLink hardware, roof-mounted cabin microphones are routed directly through standard Android audio input sources (`MediaRecorder.AudioSource.MIC` or `VOICE_RECOGNITION`), utilizing built-in automotive noise suppression and acoustic echo cancellation.
+
+---
+
+## 6. BYD Rotating Screen Handling
+
+BYD vehicles feature motorized rotatable touchscreens (Landscape and Portrait):
+
+1. **Zero Activity Re-creation During Rotation:**
+   Configured in `AndroidManifest.xml` with:
+   ```xml
+   android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize"
+   ```
+   This ensures that screen rotation:
+   - **Does NOT recreate the Activity** or re-initialize Vosk STT models.
+   - Preserves ongoing audio capture and in-flight TTS playback without interruption.
+2. **Adaptive Layout:**
+   - `activity_main.xml` utilizes `ConstraintLayout` with percentage guidelines and flexible constraints, ensuring conversation message cards and the microphone action button scale seamlessly on both widescreen landscape (15.6") and vertical portrait views.
+
+---
+
+## 7. Diagnostics & Runtime Troubleshooting
+
+Monitor live NLU routing, speech processing, and CAN-bus bridge execution via ADB logs:
+
+```bash
+# Monitor all voice assistant subsystem logs
+adb logcat -s BYD_CarControl BYD_STT BYD_TTS BYD_Assistant
+
+# Or filter exclusively for executed vehicle control actions
+adb logcat -s BYD_CarControl
+```
+
+### Common Issues & Troubleshooting:
+
+| Issue | Probable Cause | Recommended Resolution |
+| :--- | :--- | :--- |
+| **Assistant does not listen or closes immediately** | Missing microphone runtime permission | Go to Settings > Apps > BYD Voice Assistant > Permissions > Microphone > Allow, or execute `adb shell pm grant com.byd.voiceassistant android.permission.RECORD_AUDIO`. |
+| **Vosk engine fails to initialize** | Speech model missing from `assets/model-ar` | Verify `vosk-model-small-ar-0.22` files are present in `android/app/src/main/assets/model-ar/` before compilation as documented in Section 3. |
+| **Car commands execute but no audio response is spoken** | System TTS engine lacks Arabic voice data | Check Android Text-to-Speech settings (Text-to-Speech Settings > Google Speech Recognition & Synthesis) and ensure the Arabic voice data pack is downloaded and active. |
+| **General knowledge queries fail** | Head unit lacks internet connectivity | General knowledge (weather, news, Wikipedia) requires an active internet connection (vehicle 4G/5G SIM or Wi-Fi hotspot). Offline Car Controls (Branch A) and Chitchat (Branch C) work 100% offline. |
+| **ADB over Wi-Fi connection fails** | Laptop and head unit on different networks or firewall blocks port 5555 | Verify both devices are connected to the exact same subnet/hotspot and test network reachability via ping before running `adb connect`. |

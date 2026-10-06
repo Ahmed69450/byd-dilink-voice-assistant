@@ -11,29 +11,29 @@
 ---
 
 ## الفهرس العربي (Arabic Table of Contents)
-1. [نظرة عامة على المشروع](#-نظرة-عامة-على-المشروع)
-2. [المعمارية ومخطط التدفق الشامل](#-المعمارية-ومخطط-التدفق-الشامل)
-3. [المسارات الثلاثة للنظام (The Three Branches)](#-المسارات-الثلاثة-للنظام-the-three-branches)
-4. [المتطلبات الأساسية والتثبيت](#-المتطلبات-الأساسية-والتثبيت)
-5. [أداة التشخيص والاختبار السريع عبر موجه الأوامر (CLI)](#-أداة-التشخيص-والاختبار-السريع-عبر-موجه-الأوامر-cli)
-6. [خطوات بناء حزمة التطبيق (APK Build)](#-خطوات-بناء-حزمة-التطبيق-apk-build)
-7. [إثراء قاعدة السوالف عبر مجموعات بيانات Kaggle](#-إثراء-قاعدة-السوالف-عبر-مجموعات-بيانات-kaggle)
-8. [إعداد مفاتيح واجهات برمجة التطبيقات (API Keys)](#-إعداد-مفاتيح-واجهات-برمجة-التطبيقات-api-keys)
-9. [أوامر النشر على مستودع GitHub](#-أوامر-النشر-على-مستودع-github)
-10. [دليل التثبيت على شاشة السيارة](#-دليل-التثبيت-على-شاشة-السيارة)
+1. [نظرة عامة على المشروع](#نظرة-عامة-على-المشروع)
+2. [المعمارية ومخطط التدفق الشامل](#المعمارية-ومخطط-التدفق-الشامل)
+3. [المسارات الثلاثة للنظام (The Three Branches)](#المسارات-الثلاثة-للنظام-the-three-branches)
+4. [المتطلبات الأساسية والتثبيت](#المتطلبات-الأساسية-والتثبيت)
+5. [أداة التشخيص والاختبار السريع عبر موجه الأوامر (CLI)](#أداة-التشخيص-والاختبار-السريع-عبر-موجه-الأوامر-cli)
+6. [خطوات بناء حزمة التطبيق (APK Build)](#خطوات-بناء-حزمة-التطبيق-apk-build)
+7. [إثراء قاعدة السوالف عبر مجموعات بيانات Kaggle](#إثراء-قاعدة-السوالف-عبر-مجموعات-بيانات-kaggle)
+8. [إعداد مفاتيح واجهات برمجة التطبيقات (API Keys)](#إعداد-مفاتيح-واجهات-برمجة-التطبيقات-api-keys)
+9. [أوامر النشر على مستودع GitHub](#أوامر-النشر-على-مستودع-github)
+10. [دليل التثبيت على شاشة السيارة](#دليل-التثبيت-على-شاشة-السيارة)
 
 ---
 
 ## English Table of Contents
-1. [Project Overview](#-english-overview)
-2. [System Architecture](#-system-architecture)
-3. [The Three Execution Branches](#-the-three-execution-branches)
-4. [Prerequisites & Environment Setup](#-prerequisites--environment-setup)
-5. [CLI Diagnostics & Simulation](#-cli-diagnostics--simulation)
-6. [Building the Android APK](#-building-the-android-apk)
-7. [Kaggle Dataset Enrichment Pipeline](#-kaggle-dataset-enrichment-pipeline)
-8. [API Key Configuration](#-api-key-configuration)
-9. [Git & GitHub Repository Deployment](#-git--github-repository-deployment)
+1. [Project Overview](#english-overview)
+2. [System Architecture](#system-architecture)
+3. [The Three Execution Branches](#the-three-execution-branches)
+4. [Prerequisites & Environment Setup](#prerequisites--environment-setup)
+5. [CLI Diagnostics & Simulation](#cli-diagnostics--simulation)
+6. [Building the Android APK](#building-the-android-apk)
+7. [Kaggle Dataset Enrichment Pipeline](#kaggle-dataset-enrichment-pipeline)
+8. [API Key Configuration](#api-key-configuration)
+9. [Git & GitHub Repository Deployment](#git--github-repository-deployment)
 
 ---
 
@@ -80,7 +80,7 @@
  ┌───────────────────────────────────┐             │
  │      جسر سيارات BYD DiLink        │             │ النص النهائي المنطوق
  │      (CarControlBridge.kt)        │             ▼
- │  تكييف • نوافذ • صوتيات • تطبيقات │  ┌─────────────────────────────────────┐
+ │ تكييف • نوافذ • أنوار • صوتيات • تطبيقات │  ┌─────────────────────────────────────┐
  └───────────────────────────────────┘  │     محرك النطق الصوتي (TTS Engine)  │
                                         │      نطق محلي باللغة العربية        │
                                         └──────────────────┬──────────────────┘
@@ -101,6 +101,7 @@
 - **الأنظمة المدعومة:**
   - **التكييف (AC):** تشغيل/إيقاف، ضبط درجة الحرارة برقم محدد، رفع/خفض الحرارة، والتحكم بسرعة المروحة.
   - **النوافذ وفتحة السقف:** فتح وإغلاق النوافذ كلياً أو جزئياً، فتح وإغلاق فتحة السقف وستارة السقف.
+  - **الإضاءة والأنوار:** تشغيل وإطفاء الأنوار والمصابيح، إضاءة القراءة، والمصابيح الترحيبية والمحيطية.
   - **الوسائط ومستوى الصوت:** كتم الصوت، رفع/خفض الصوت، ضبط مستوى رقمي محدد، إيقاف وتشغيل الوسائط، والتنقل بين المقاطع.
   - **التطبيقات والملاحة:** فتح تطبيقات النظام الأصلية (الكاميرات المحيطية 360، تطبيق الطاقة، الإعدادات، وخرائط الملاحة إلى وجهة محددة).
 - **آلية الربط:** يرسل محرك البايثون كائناً بصيغة JSON إلى `CarControlBridge.kt` الذي ينفذ نية النظام المناسبة عبر `AudioManager` أو نوايا بث السيارة (`System Broadcast Intents`).
@@ -294,17 +295,18 @@ The system pipeline routes voice queries into three execution branches:
                                                      │
               ┌──────────────────────────────────────┼──────────────────────────────────────┐
               ▼                                      ▼                                      ▼
-     [Branch A: Car Control]              [Branch B: Knowledge]                    [Branch C: Chitchat]
-    • AC & Fan Speed                     • Open-Meteo (Weather)                   • Fuzzy Matching
-    • Windows & Sunroof                  • Wolfram Alpha (Math/Facts)             • Dialectal Persona
-    • Volume & Media Playback            • DuckDuckGo (Abstracts)                 • Pre-bundled Dataset
-    • System Navigation & Apps           • World Time API & NewsAPI               • Kaggle Ingestion Pipeline
-              │                                      │                                      │
-              ▼                                      └──────────────────┬───────────────────┘
-   [CarControlBridge.kt]                                                ▼
-(System Broadcasts & AudioManager)                         [Native/Piper Arabic TTS]
-                                                                        ▼
-                                                             [Vehicle Speakers]
+      [Branch A: Car Control]              [Branch B: Knowledge]                    [Branch C: Chitchat]
+     • AC & Fan Speed                     • Open-Meteo (Weather)                   • Fuzzy Matching
+     • Windows & Sunroof                  • Wolfram Alpha (Math/Facts)             • Dialectal Persona
+     • Vehicle Lighting                   • DuckDuckGo (Abstracts)                 • Pre-bundled Dataset
+     • Volume & Media Playback            • World Time API & NewsAPI               • Kaggle Ingestion Pipeline
+     • System Navigation & Apps           │                                        │
+               │                          │                                        │
+               ▼                          └──────────────────┬─────────────────────┘
+    [CarControlBridge.kt]                                    ▼
+ (System Broadcasts & AudioManager)             [Native/Piper Arabic TTS]
+                                                             ▼
+                                                  [Vehicle Speakers]
 ```
 
 ---
@@ -312,6 +314,11 @@ The system pipeline routes voice queries into three execution branches:
 ## 🚦 The Three Execution Branches
 
 - **Branch A (Offline Car Controls):** 100% offline with zero external network dependency. Returns structured JSON executed by `CarControlBridge.kt` via native Android system intents, media keycodes, and audio manager calls.
+  - **Climate Control (HVAC):** Power on/off, precise temperature targets, incremental heating/cooling, and fan blower speeds.
+  - **Windows & Sunroof:** Full/partial open/close for all windows or individual driver window, sunroof glass, and sunshade.
+  - **Vehicle Lighting:** Headlights, ambient cabin lighting, and interior reading lights activation and deactivation.
+  - **Media & Volume:** Mute toggle, discrete volume levels, step volume, media playback, pause, and track skip.
+  - **Navigation & DiLink Apps:** Direct navigation intents, map launches, 360 panoramic cameras, energy management, and car settings.
 - **Branch B (Alexa-like Knowledge APIs):** Connects to lightweight REST endpoints (Open-Meteo, DuckDuckGo Instant Answers, Wolfram Alpha, World Time API, and NewsAPI) with complete offline fallback protection.
 - **Branch C (Arabic Chitchat Engine):** Sub-50ms fuzzy matching against pre-curated Egyptian, Gulf, and MSA conversation pairs in `chitchat.json`, extendable via Kaggle dataset scripts.
 

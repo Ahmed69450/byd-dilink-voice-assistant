@@ -95,6 +95,7 @@ android/app/src/main/assets/model-ar/*
 *.log
 *-review-diff.txt
 *-fix-diff.txt
+.superpowers/
 
 # ------------------------------------------------------------------------------
 # Operating System Files
