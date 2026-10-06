@@ -186,17 +186,25 @@ def test_query_time_mocked_success():
 
 
 def test_query_time_offline_connection_error():
-    """query_time returns graceful Arabic offline message on network failure."""
+    """query_time falls back to local device time on network failure."""
     with patch("requests.get", side_effect=requests.exceptions.ConnectionError("DNS failure")):
         res = query_time("الرياض")
-        assert res == OFFLINE_FALLBACK_MESSAGE
+        assert "الرياض" in res
+        assert "الوقت الحالي" in res
+        assert res != OFFLINE_FALLBACK_MESSAGE
+        import re
+        assert re.search(r"\(\d{2}:\d{2}\)", res) is not None
 
 
 def test_query_time_offline_timeout():
-    """query_time returns graceful Arabic offline message on Timeout."""
+    """query_time falls back to local device time on Timeout."""
     with patch("requests.get", side_effect=requests.exceptions.Timeout("Timeout")):
         res = query_time("طوكيو")
-        assert res == OFFLINE_FALLBACK_MESSAGE
+        assert "طوكيو" in res
+        assert "الوقت الحالي" in res
+        assert res != OFFLINE_FALLBACK_MESSAGE
+        import re
+        assert re.search(r"\(\d{2}:\d{2}\)", res) is not None
 
 
 # =====================================================================
@@ -588,3 +596,108 @@ def test_urllib_fallback_when_requests_disabled():
             status, text = api_clients._http_get_text("https://example.com/api")
             assert status == 200
             assert text == "plain text result"
+
+
+# =====================================================================
+# 8. Code Review Verification & Regression Tests
+# =====================================================================
+
+def test_query_weather_geocoding_network_failure_offline_fallback():
+    """If geocoding fails due to network error when offline, returns OFFLINE_FALLBACK_MESSAGE."""
+    with patch("requests.get", side_effect=requests.exceptions.ConnectionError("Offline")):
+        res = query_weather("مدينة_مجهولة_جغرافياً")
+        assert res == OFFLINE_FALLBACK_MESSAGE
+        assert "العثور على موقع" not in res
+
+
+def test_time_formatter_minutes_grammar():
+    """format_time_response uses proper Arabic grammatical forms for minutes."""
+    res_1 = format_time_response("الرياض", "2026-10-07T14:01:00")
+    assert "ودقيقة" in res_1
+    assert "و1 دقيقة" not in res_1
+
+    res_2 = format_time_response("الرياض", "2026-10-07T14:02:00")
+    assert "ودقيقتان" in res_2
+    assert "و2 دقيقة" not in res_2
+
+    res_5 = format_time_response("الرياض", "2026-10-07T14:05:00")
+    assert "وخمس دقائق" in res_5
+    assert "و5 دقيقة" not in res_5
+
+    res_10 = format_time_response("الرياض", "2026-10-07T14:10:00")
+    assert "وعشر دقائق" in res_10
+    assert "و10 دقيقة" not in res_10
+
+
+def test_query_duckduckgo_status_202_accepted():
+    """query_duckduckgo accepts HTTP 202 status code and extracts response payload."""
+    mock_resp = MagicMock()
+    mock_resp.status_code = 202
+    mock_resp.json.return_value = {
+        "AbstractText": "بيروت هي عاصمة الجمهورية اللبنانية وأكبر مدنها.",
+        "Answer": "",
+        "RelatedTopics": []
+    }
+    with patch("requests.get", return_value=mock_resp):
+        res = query_duckduckgo("بيروت")
+        assert res == "بيروت هي عاصمة الجمهورية اللبنانية وأكبر مدنها."
+
+
+def test_handle_general_knowledge_google_founder_not_weather():
+    """'من هو مؤسس جوجل؟' must NOT route to weather."""
+    with patch("api_clients.query_weather") as mock_weather, \
+         patch("api_clients.query_duckduckgo", return_value="سيرجي برين ولاري بيج"):
+        res = handle_general_knowledge("من هو مؤسس جوجل؟")
+        assert not mock_weather.called
+        assert "سيرجي برين" in res
+
+
+def test_handle_general_knowledge_arjook_math_not_weather():
+    """'أرجوك احسب 2 زائد 2' routes to math/Wolfram and NOT weather."""
+    with patch("api_clients.query_weather") as mock_weather:
+        res = handle_general_knowledge("أرجوك احسب 2 زائد 2")
+        assert not mock_weather.called
+        assert "4" in res
+
+
+def test_handle_general_knowledge_negative_weather_words():
+    """'معايير الجودة' and 'النجوم' must NOT route to weather."""
+    with patch("api_clients.query_weather") as mock_weather, \
+         patch("api_clients.query_duckduckgo", return_value="معلومات موثوقة"):
+        res1 = handle_general_knowledge("معايير الجودة")
+        assert not mock_weather.called
+        assert res1 == "معلومات موثوقة"
+
+        res2 = handle_general_knowledge("النجوم في السماء")
+        assert not mock_weather.called
+        assert res2 == "معلومات موثوقة"
+
+
+def test_handle_general_knowledge_time_al_saah_al_an():
+    """'الساعة الآن في الرياض' correctly routes to time."""
+    with patch("api_clients.query_time", return_value="الوقت الحالي في الرياض هو الثالثة عصراً (15:00).") as mock_time:
+        res = handle_general_knowledge("الساعة الآن في الرياض")
+        assert mock_time.called
+        assert "الرياض" in res
+        assert "الوقت الحالي" in res
+
+
+def test_urllib_http_error_handling():
+    """_http_get_json and _http_get_text catch urllib.error.HTTPError without crashing."""
+    import api_clients
+    import io
+    import urllib.error
+
+    http_err_json = urllib.error.HTTPError("https://example.com/api", 404, "Not Found", {}, io.BytesIO(b"{}"))
+    with patch.object(api_clients, "HAS_REQUESTS", False):
+        with patch("urllib.request.urlopen", side_effect=http_err_json):
+            code, data = api_clients._http_get_json("https://example.com/api")
+            assert code == 404
+            assert data == {}
+
+    http_err_text = urllib.error.HTTPError("https://example.com/api", 500, "Internal Server Error", {}, io.BytesIO(b"Internal Error"))
+    with patch.object(api_clients, "HAS_REQUESTS", False):
+        with patch("urllib.request.urlopen", side_effect=http_err_text):
+            code, text = api_clients._http_get_text("https://example.com/api")
+            assert code == 500
+            assert text == "Internal Error"

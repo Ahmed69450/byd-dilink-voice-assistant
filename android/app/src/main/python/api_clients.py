@@ -20,14 +20,15 @@ Guarantees:
 import os
 import re
 import urllib.parse
+import urllib.request
+import urllib.error
+from datetime import datetime
 from typing import Dict, Any, Optional, Tuple, List
 
 try:
     import requests
     HAS_REQUESTS = True
 except ImportError:
-    import urllib.request
-    import urllib.error
     HAS_REQUESTS = False
 
 
@@ -189,10 +190,18 @@ def _http_get_json(url: str, params: Optional[dict] = None, timeout: float = DEF
     else:
         # Fallback to urllib.request
         req = urllib.request.Request(full_url, headers={"User-Agent": "BYD-DiLink-VoiceAssistant/1.0"})
-        with urllib.request.urlopen(req, timeout=timeout) as response:
-            import json
-            data = json.loads(response.read().decode("utf-8"))
-            return response.status, data
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                import json
+                data = json.loads(response.read().decode("utf-8"))
+                return getattr(response, "status", 200), data
+        except urllib.error.HTTPError as e:
+            try:
+                import json
+                data = json.loads(e.read().decode("utf-8"))
+            except Exception:
+                data = {}
+            return e.code, data
 
 
 def _http_get_text(url: str, params: Optional[dict] = None, timeout: float = DEFAULT_TIMEOUT_SECONDS) -> Tuple[int, str]:
@@ -211,19 +220,31 @@ def _http_get_text(url: str, params: Optional[dict] = None, timeout: float = DEF
         return resp.status_code, resp.text
     else:
         req = urllib.request.Request(full_url, headers={"User-Agent": "BYD-DiLink-VoiceAssistant/1.0"})
-        with urllib.request.urlopen(req, timeout=timeout) as response:
-            return response.status, response.read().decode("utf-8")
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as response:
+                return getattr(response, "status", 200), response.read().decode("utf-8")
+        except urllib.error.HTTPError as e:
+            try:
+                body = e.read().decode("utf-8")
+            except Exception:
+                body = ""
+            return e.code, body
 
 
 # =====================================================================
 # Location & City Resolution Helper
 # =====================================================================
 
-def resolve_city_coordinates(location_name: str, timeout: float = DEFAULT_TIMEOUT_SECONDS) -> Optional[Dict[str, Any]]:
+def resolve_city_coordinates(
+    location_name: str,
+    timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    raise_errors: bool = False,
+) -> Optional[Dict[str, Any]]:
     """
     Resolves city name to coordinates {'lat': float, 'lon': float, 'timezone': str, 'name': str}.
     Checks pre-defined Arabic cities dictionary first.
     Falls back to Open-Meteo Geocoding API if unknown.
+    If raise_errors is True, propagates network/connection errors instead of returning None.
     """
     clean_name = location_name.strip()
     if clean_name in ARABIC_CITIES:
@@ -253,8 +274,12 @@ def resolve_city_coordinates(location_name: str, timeout: float = DEFAULT_TIMEOU
                 "timezone": first.get("timezone", "Asia/Riyadh"),
                 "name": first.get("name", clean_name),
             }
+        elif status != 200 and raise_errors:
+            raise ConnectionError(f"Geocoding service returned status {status}")
     except Exception:
-        pass
+        if raise_errors:
+            raise
+        return None
 
     return None
 
@@ -312,7 +337,7 @@ def query_weather(
 
     try:
         if lat is None or lon is None:
-            geo_info = resolve_city_coordinates(loc_name, timeout=timeout)
+            geo_info = resolve_city_coordinates(loc_name, timeout=timeout, raise_errors=True)
             if not geo_info:
                 return f"لم أتمكن من العثور على موقع '{loc_name}' لمعرفة الطقس."
             lat = geo_info["lat"]
@@ -377,6 +402,14 @@ def format_time_response(location_name: str, iso_datetime_or_time_str: str) -> s
 
     if minute == 0:
         spoken = f"{ARABIC_HOURS_WORDS[h12]} {period}"
+    elif minute == 1:
+        spoken = f"{ARABIC_HOURS_WORDS[h12]} ودقيقة {period}"
+    elif minute == 2:
+        spoken = f"{ARABIC_HOURS_WORDS[h12]} ودقيقتان {period}"
+    elif minute == 5:
+        spoken = f"{ARABIC_HOURS_WORDS[h12]} وخمس دقائق {period}"
+    elif minute == 10:
+        spoken = f"{ARABIC_HOURS_WORDS[h12]} وعشر دقائق {period}"
     elif minute == 15:
         spoken = f"{ARABIC_HOURS_WORDS[h12]} والربع {period}"
     elif minute == 20:
@@ -395,6 +428,8 @@ def format_time_response(location_name: str, iso_datetime_or_time_str: str) -> s
     elif minute == 55:
         next_h = (h12 % 12) + 1
         spoken = f"{ARABIC_HOURS_WORDS[next_h]} إلا خمس دقائق {period}"
+    elif 3 <= minute <= 10:
+        spoken = f"{ARABIC_HOURS_WORDS[h12]} و{minute} دقائق {period}"
     else:
         spoken = f"{ARABIC_HOURS_WORDS[h12]} و{minute} دقيقة {period}"
 
@@ -408,7 +443,8 @@ def query_time(
 ) -> str:
     """
     Queries WorldTimeAPI for the current time in the given city or timezone.
-    Returns clear formatted Arabic spoken output or offline fallback.
+    Returns clear formatted Arabic spoken output.
+    Falls back to local device time (datetime.now()) if WorldTimeAPI fails or device is offline.
     """
     loc_name = city_or_timezone or location_name or "الرياض"
 
@@ -429,10 +465,13 @@ def query_time(
             dt_str = data["datetime"]
             return format_time_response(display_name, dt_str)
         else:
-            return OFFLINE_FALLBACK_MESSAGE
+            now_iso = datetime.now().isoformat()
+            return format_time_response(display_name, now_iso)
 
     except Exception:
-        return OFFLINE_FALLBACK_MESSAGE
+        display_name = loc_name.split("/")[-1].replace("_", " ") if "/" in loc_name else loc_name
+        now_iso = datetime.now().isoformat()
+        return format_time_response(display_name, now_iso)
 
 
 # =====================================================================
@@ -505,7 +544,7 @@ def query_duckduckgo(
     try:
         url = f"https://api.duckduckgo.com/?q={urllib.parse.quote(clean_query)}&format=json&no_html=1&skip_disambig=1"
         status, data = _http_get_json(url, timeout=timeout)
-        if status == 200 and isinstance(data, dict):
+        if (status in (200, 202) or (200 <= status < 300)) and isinstance(data, dict):
             # 1. AbstractText
             abstract = data.get("AbstractText", "").strip()
             if abstract:
@@ -628,6 +667,26 @@ def _safe_calculate_arabic_math(query: str) -> Optional[str]:
 # 6. Branch B Master Dispatcher: handle_general_knowledge
 # =====================================================================
 
+WEATHER_INTENT_PATTERN = re.compile(
+    r'(?:^|\s)(الطقس|طقس|الجو|جو|درج[ةه]\s+الحرار[ةه]|الحرار[ةه]\s+في|درج[ةه]\s+الحراز?[ةه]|الحراز?[ةه]\s+في|مطر|أمطار|امطار|غيوم|رياح)(?:\s|[؟?!.,]|$)',
+    re.UNICODE
+)
+
+TIME_INTENT_PATTERN = re.compile(
+    r'(?:^|\s)(كم\s+(?:الساع[ةه]|الوقت)|(?:الساع[ةه]|الوقت)\s+كم|'
+    r'(?:الساع[ةه]|الوقت)\s+(?:الان|الآن|الحالي)?(?:\s+في)?|'
+    r'الوقت\s+الحالي|توقيت)(?:\s|[؟?!.,]|$)',
+    re.UNICODE
+)
+
+TIME_KEYWORDS = [
+    "كم الساعة", "كم الساعه", "الساعة كم", "الساعه كم",
+    "كم الوقت", "الوقت الان", "الوقت الآن", "الوقت الحالي", "توقيت",
+    "الساعة في", "الساعه في", "الوقت في",
+    "الساعة الآن", "الساعه الان", "الساعة الان", "الساعه الآن",
+]
+
+
 def handle_general_knowledge(
     query: str,
     entities: Optional[dict] = None,
@@ -663,10 +722,9 @@ def handle_general_knowledge(
         # -------------------------------------------------------------
         # A. Weather Dispatch
         # -------------------------------------------------------------
-        is_weather = any(k in clean_query for k in [
-            "الطقس", "طقس", "الجو", "جو", "درجة الحرارة", "درجه الحراره",
-            "الحرارة في", "الحراره في", "مطر", "أمطار", "امطار", "غيوم", "رياح"
-        ]) or entities.get("topic") == "weather" or entities.get("domain") == "weather"
+        is_weather = bool(WEATHER_INTENT_PATTERN.search(clean_query)) or \
+            entities.get("topic") == "weather" or \
+            entities.get("domain") == "weather"
 
         if is_weather:
             # Extract target city
@@ -682,11 +740,10 @@ def handle_general_knowledge(
         # -------------------------------------------------------------
         # B. Time Dispatch
         # -------------------------------------------------------------
-        is_time = any(k in clean_query for k in [
-            "كم الساعة", "كم الساعه", "الساعة كم", "الساعه كم",
-            "كم الوقت", "الوقت الان", "الوقت الآن", "توقيت",
-            "الساعة في", "الساعه في", "الوقت في"
-        ]) or entities.get("topic") == "time" or entities.get("domain") == "time"
+        is_time = bool(TIME_INTENT_PATTERN.search(clean_query)) or \
+            any(k in clean_query for k in TIME_KEYWORDS) or \
+            entities.get("topic") == "time" or \
+            entities.get("domain") == "time"
 
         if is_time:
             city = entities.get("location") or entities.get("city")
