@@ -360,16 +360,16 @@ git commit -m "feat(android): implement BYD DiLink Android app with Chaquopy, Ca
 - Create: `README.md`
 - Create: `docs/BYD_DILINK_DEPLOYMENT.md`
 
-- [ ] **Step 1: كتابة ملف .gitignore الشامل**
+- [x] **Step 1: كتابة ملف .gitignore الشامل**
 تضمين استثناءات Gradle، بيئات Python الافتراضية، ملفات الـ Cache، ونماذج الصوت الكبيرة.
 
-- [ ] **Step 2: كتابة README.md الشامل ووثيقة النشر**
+- [x] **Step 2: كتابة README.md الشامل ووثيقة النشر**
 - شرح المعمارية ومخطط التدفق.
 - خطوات التثبيت والتشغيل والتجربة عبر CLI.
 - خطوات بناء ملف الـ APK في Android Studio وتثبيته على شاشة BYD DiLink عبر فلاش ميموري (USB) أو ADB.
 - أوامر Git الدقيقة لإنشاء مستودع جديد على GitHub ورفع المشروع.
 
-- [ ] **Step 3: فحص الحالة والالتزام النهائي (Final Commit)**
+- [x] **Step 3: فحص الحالة والالتزام النهائي (Final Commit)**
 ```bash
 git add .gitignore README.md docs/BYD_DILINK_DEPLOYMENT.md
 git commit -m "docs: add comprehensive README, deployment guide, and gitignore"
