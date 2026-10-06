@@ -268,7 +268,7 @@ git commit -m "feat(api): implement REST API clients for knowledge, weather, new
     }
     ```
 
-- [ ] **Step 1: كتابة الاختبار الفاشل**
+- [x] **Step 1: كتابة الاختبار الفاشل**
 ```python
 # tests/test_router.py
 import json
@@ -294,17 +294,17 @@ def test_multi_turn_pipeline():
     assert out2["intent"] == "general_knowledge"
 ```
 
-- [ ] **Step 2: تشغيل الاختبار والتأكد من فشله**
+- [x] **Step 2: تشغيل الاختبار والتأكد من فشله**
 Run: `python -m pytest tests/test_router.py -v`
 
-- [ ] **Step 3: كتابة كود router.py و car_commands.py و test_router_cli.py**
+- [x] **Step 3: كتابة كود router.py و car_commands.py و test_router_cli.py**
 - ربط مسارات المعالجة: `Listen -> Normalize -> Resolve Context -> Classify -> Branch A/B/C -> Update Memory -> Produce Output JSON`.
 - توفير سكربت `test_router_cli.py` تفاعلي لتجربة الأوامر بالصوت/الكتابة مباشرة من سطر الأوامر.
 
-- [ ] **Step 4: تشغيل الاختبار والتحقق من نجاحه**
+- [x] **Step 4: تشغيل الاختبار والتحقق من نجاحه**
 Run: `python -m pytest tests/test_router.py -v`
 
-- [ ] **Step 5: الالتزام (Commit)**
+- [x] **Step 5: الالتزام (Commit)**
 ```bash
 git add android/app/src/main/python/car_commands.py android/app/src/main/python/router.py scripts/test_router_cli.py tests/test_router.py
 git commit -m "feat(router): implement unified VoiceAssistantRouter and interactive CLI tester"
