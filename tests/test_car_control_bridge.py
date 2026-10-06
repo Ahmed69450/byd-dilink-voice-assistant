@@ -150,3 +150,63 @@ def test_android_resources_xml_validity():
             ET.parse(path)
         except ET.ParseError as e:
             pytest.fail(f"XML parse error in {path}: {e}")
+
+
+def test_main_activity_chitchat_json_copy_and_config():
+    """Verify MainActivity copies assets/chitchat.json to filesDir and passes config to process_voice_input."""
+    main_activity_path = os.path.join(REPO_ROOT, "android", "app", "src", "main", "java", "com", "byd", "voiceassistant", "MainActivity.kt")
+    assert os.path.isfile(main_activity_path)
+    with open(main_activity_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    assert 'File(filesDir, "chitchat.json")' in content
+    assert 'assets.open("chitchat.json")' in content
+    assert '"chitchat_path"' in content
+    assert "chitchatConfigJson" in content
+    assert "process_voice_input" in content
+
+
+def test_download_vosk_model_helper(tmp_path):
+    """Verify scripts/download_vosk_model.py can unpack zip with root folder stripping and passes --check."""
+    import sys
+    import zipfile
+    import subprocess
+    sys.path.insert(0, os.path.join(REPO_ROOT, "scripts"))
+    import download_vosk_model
+
+    # Create dummy zip with vosk-model-small-ar-0.22/ prefix
+    zip_path = tmp_path / "test_vosk_model.zip"
+    extract_dir = tmp_path / "model_out"
+
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("vosk-model-small-ar-0.22/conf/model.conf", "test_config=1")
+        zf.writestr("vosk-model-small-ar-0.22/am/final.mdl", "binary_model_bytes")
+
+    download_vosk_model.extract_model_archive(zip_path, extract_dir)
+
+    # Check that root prefix was stripped
+    assert (extract_dir / "conf" / "model.conf").is_file()
+    assert (extract_dir / "am" / "final.mdl").is_file()
+    assert (extract_dir / "conf" / "model.conf").read_text() == "test_config=1"
+    assert download_vosk_model.verify_model_dir(extract_dir) is True
+
+    # Test CLI --check flag
+    script_path = os.path.join(REPO_ROOT, "scripts", "download_vosk_model.py")
+    res_ok = subprocess.run(
+        [sys.executable, script_path, "--output", str(extract_dir), "--check"],
+        capture_output=True,
+        text=True
+    )
+    assert res_ok.returncode == 0
+    assert "[OK]" in res_ok.stdout
+
+    # Test CLI --check on non-existent directory
+    missing_dir = tmp_path / "does_not_exist"
+    res_missing = subprocess.run(
+        [sys.executable, script_path, "--output", str(missing_dir), "--check"],
+        capture_output=True,
+        text=True
+    )
+    assert res_missing.returncode == 1
+    assert "[MISSING]" in res_missing.stdout
+

@@ -112,6 +112,8 @@ class ChitchatEngine:
             target_path = p
         else:
             candidates = [
+                # Bundled inside python directory alongside chitchat_engine.py (Chaquopy unpack target)
+                Path(__file__).resolve().parent / "chitchat.json",
                 # Android assets relative to chitchat_engine.py
                 Path(__file__).resolve().parent.parent / "assets" / "chitchat.json",
                 # Project root relative

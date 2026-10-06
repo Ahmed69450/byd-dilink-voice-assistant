@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -57,6 +58,7 @@ class MainActivity : AppCompatActivity(), STTEngine.STTListener, CarControlBridg
     // Chaquopy Python Bridge
     private var pythonRouterFn: PyObject? = null
     private var isPythonReady: Boolean = false
+    private var chitchatConfigJson: String = "{}"
 
     // UI Elements
     private lateinit var tvUserQuery: TextView
@@ -76,6 +78,7 @@ class MainActivity : AppCompatActivity(), STTEngine.STTListener, CarControlBridg
         initCarBridge()
         initTTS()
         initSTT()
+        initChitchatAsset()
         initChaquopyPython()
         setupListeners()
         checkAudioPermission()
@@ -117,6 +120,25 @@ class MainActivity : AppCompatActivity(), STTEngine.STTListener, CarControlBridg
                 }
             )
         }
+    }
+
+    private fun initChitchatAsset() {
+        val destFile = File(filesDir, "chitchat.json")
+        if (!destFile.exists()) {
+            try {
+                assets.open("chitchat.json").use { inputStream ->
+                    destFile.outputStream().use { outputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                }
+                Log.i(TAG, "Copied assets/chitchat.json to ${destFile.absolutePath}")
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not copy assets/chitchat.json to filesDir: ${e.message}")
+            }
+        }
+        val config = JSONObject()
+        config.put("chitchat_path", destFile.absolutePath)
+        chitchatConfigJson = config.toString()
     }
 
     private fun initChaquopyPython() {
@@ -222,7 +244,7 @@ class MainActivity : AppCompatActivity(), STTEngine.STTListener, CarControlBridg
         lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val jsonResultStr = if (isPythonReady && pythonRouterFn != null) {
-                    pythonRouterFn?.call(trimmed)?.toString() ?: "{}"
+                    pythonRouterFn?.call(trimmed, chitchatConfigJson)?.toString() ?: "{}"
                 } else {
                     // Fallback JSON if Python runtime is not ready yet
                     "{\"status\":\"error\",\"intent\":\"chitchat\",\"spoken_response\":\"جاري تهيئة نظام الذكاء الاصطناعي...\",\"car_action\":null}"

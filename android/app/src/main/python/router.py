@@ -163,9 +163,15 @@ _GLOBAL_ROUTER: Optional[VoiceAssistantRouter] = None
 def get_router(config: Optional[Dict[str, Any]] = None) -> VoiceAssistantRouter:
     """Returns or initializes the singleton VoiceAssistantRouter instance."""
     global _GLOBAL_ROUTER
+    chitchat_path = config.get("chitchat_path") if config else None
     if _GLOBAL_ROUTER is None:
-        _GLOBAL_ROUTER = VoiceAssistantRouter(api_config=config)
+        _GLOBAL_ROUTER = VoiceAssistantRouter(chitchat_path=chitchat_path, api_config=config)
     elif config:
+        if chitchat_path and (not _GLOBAL_ROUTER.chitchat.data_path or _GLOBAL_ROUTER.chitchat.data_path != chitchat_path):
+            try:
+                _GLOBAL_ROUTER.chitchat = ChitchatEngine(data_path=chitchat_path)
+            except Exception:
+                pass
         _GLOBAL_ROUTER.api_config.update(config)
     return _GLOBAL_ROUTER
 

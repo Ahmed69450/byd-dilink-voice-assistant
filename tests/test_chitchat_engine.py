@@ -450,3 +450,60 @@ def test_kaggle_script_overwrite_protection(tmp_path):
     assert res_ok.returncode == 0
 
 
+def test_kaggle_script_local_file_alias(tmp_path):
+    """Scripts CLI accepts --local-file alias as input and merges cleanly."""
+    import subprocess
+
+    sample_csv = tmp_path / "sample.csv"
+    sample_csv.write_text("question,answer\nيا هلا,أهلاً وسهلاً بك يا مرحبا!\n", encoding="utf-8")
+
+    existing_json = tmp_path / "merged_out.json"
+    existing_json.write_text(json.dumps([{"pattern": "صباح الخير", "responses": ["صباح النور"]}]), encoding="utf-8")
+
+    script_path = Path(__file__).resolve().parent.parent / "scripts" / "fetch_kaggle_chitchat.py"
+
+    cmd = [
+        sys.executable,
+        str(script_path),
+        "--local-file", str(sample_csv),
+        "--output", str(existing_json),
+        "--merge"
+    ]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    assert res.returncode == 0
+    with open(existing_json, "r", encoding="utf-8") as f:
+        loaded = json.load(f)
+    assert len(loaded) == 2
+    assert any(it.get("pattern") == "يا هلا" for it in loaded)
+
+
+def test_bundled_python_chitchat_json_exists():
+    """Verify chitchat.json is bundled in python source directory and matches assets."""
+    repo_root = Path(__file__).resolve().parent.parent
+    python_json = repo_root / "android" / "app" / "src" / "main" / "python" / "chitchat.json"
+    assets_json = repo_root / "android" / "app" / "src" / "main" / "assets" / "chitchat.json"
+
+    assert python_json.is_file(), f"Missing bundled {python_json}"
+    assert assets_json.is_file(), f"Missing assets {assets_json}"
+
+    with open(python_json, "r", encoding="utf-8") as f1, open(assets_json, "r", encoding="utf-8") as f2:
+        py_data = json.load(f1)
+        as_data = json.load(f2)
+
+    assert len(py_data) > 0
+    assert py_data == as_data
+
+
+def test_chitchat_engine_loads_bundled_python_chitchat_first():
+    """Verify ChitchatEngine default resolution prioritizes python dir chitchat.json."""
+    engine = ChitchatEngine()
+    repo_root = Path(__file__).resolve().parent.parent
+    expected_bundled = repo_root / "android" / "app" / "src" / "main" / "python" / "chitchat.json"
+
+    # Engine size must match bundled file count
+    with open(expected_bundled, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    assert engine.size() == len(data)
+
+
+

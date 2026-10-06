@@ -292,7 +292,13 @@ def main():
         description="Download and format Arabic conversational datasets from Kaggle for BYD DiLink Assistant."
     )
     parser.add_argument("-d", "--dataset", help="Kaggle dataset slug (e.g. 'arbml/arabic-chatbot-dataset')")
-    parser.add_argument("-i", "--input", help="Path to local raw dataset file (CSV, TSV, JSON, JSONL, Parquet)")
+    parser.add_argument(
+        "-i",
+        "--input",
+        "--local-file",
+        dest="input",
+        help="Path to local raw dataset file (CSV, TSV, JSON, JSONL, Parquet)"
+    )
     parser.add_argument(
         "-o",
         "--output",
@@ -334,7 +340,7 @@ def main():
 
     if not input_file:
         parser.print_help()
-        print("\nError: Please provide either --dataset or --input.")
+        print("\nError: Please provide either --dataset or --input / --local-file.")
         sys.exit(1)
 
     # Step 2: Parse raw dataset

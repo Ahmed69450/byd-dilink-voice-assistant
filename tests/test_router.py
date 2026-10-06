@@ -404,3 +404,23 @@ def test_custom_chitchat_path_initialization(tmp_path):
     assert r["intent"] == "chitchat"
     assert "مساعد مخصص للاختبار" in r["spoken_response"]
 
+
+def test_process_voice_input_with_chitchat_path_in_config(tmp_path):
+    custom_chitchat_file = tmp_path / "custom_config_chitchat.json"
+    custom_data = [
+        {
+            "pattern": "من أنت يا روبوت",
+            "aliases": ["مين انت يا روبوت"],
+            "responses": ["أنا روبوت اختباري عبر التكوين!"]
+        }
+    ]
+    custom_chitchat_file.write_text(json.dumps(custom_data, ensure_ascii=False), encoding="utf-8")
+
+    cfg = json.dumps({"chitchat_path": str(custom_chitchat_file)})
+    res_json = process_voice_input("من أنت يا روبوت", config_json=cfg)
+    parsed = json.loads(res_json)
+    assert parsed["status"] == "success"
+    assert parsed["intent"] == "chitchat"
+    assert "أنا روبوت اختباري عبر التكوين!" in parsed["spoken_response"]
+
+
