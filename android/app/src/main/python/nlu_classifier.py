@@ -773,12 +773,12 @@ def _extract_car_entities(raw_text: str, norm_text: str) -> Dict[str, Any]:
             detected_action = "turn_off"
         elif any(w in norm_text for w in ["شغل", "تشغيل", "ولع"]):
             detected_action = "turn_on"
+        elif any(re.search(rf"(?:^|\s){re.escape(w)}(?:\s|$)", norm_text) for w in ["ابرد", "برد", "سقع", "وطي", "خفض", "اخفض", "نقص", "نزل"]):
+            detected_action = "decrease"
+        elif any(re.search(rf"(?:^|\s){re.escape(w)}(?:\s|$)", norm_text) for w in ["ادفا", "دفي", "دفئ", "سخن", "اعلي", "ارفع", "زود"]):
+            detected_action = "increase"
         elif any(w in norm_text for w in ["اضبط", "ضبط", "حط", "خلي", "اجعل"]):
             detected_action = "set"
-        elif any(re.search(rf"(?:^|\s){re.escape(w)}(?:\s|$)", norm_text) for w in ["برد", "سقع", "وطي", "خفض", "اخفض", "نقص", "نزل"]):
-            detected_action = "decrease"
-        elif any(w in norm_text for w in ["دفي", "دفئ", "سخن", "اعلي", "ارفع", "زود"]):
-            detected_action = "increase"
 
     # General action matching if not yet determined
     if not detected_action:
