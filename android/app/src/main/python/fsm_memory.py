@@ -47,9 +47,54 @@ except ImportError:
             m = re.search(r"\bفي\s+([^\s?]+(?:\s+[^\s?]+)?)", norm_text)
             if m:
                 loc = m.group(1).strip()
-                if loc not in ["السياره", "السيارة", "البيت", "طريق", "العالم"]:
-                    return loc
+                if _is_non_geo_location(loc):
+                    return None
+                return loc
             return None
+
+
+# Positional car terms and non-geographic terms that should not be extracted as locations
+CAR_POSITIONAL_TERMS = {
+    "الخلف", "الامام", "الامامي", "الخلفي", "المقعد الخلفي", "المقعد الامامي",
+    "المقعد", "المقاعد", "السياره", "السيارة", "المركبه", "المركبة",
+    "الوسط", "قدام", "ورا", "وراء",
+    "يمين", "اليمين", "يسار", "اليسار", "السائق", "الراكب",
+    "الشنطه", "الشنطة", "الدرج",
+}
+
+NON_GEO_LOCATIONS = {
+    "السياره", "السيارة", "البيت", "طريق", "العالم", "هناك", "هنالك", "نفس المكان",
+} | CAR_POSITIONAL_TERMS
+
+NON_GEO_LOCATIONS_NORM = {normalize_arabic(t) for t in NON_GEO_LOCATIONS}
+
+
+def _is_non_geo_location(term: str) -> bool:
+    """Checks whether a term is non-geographic or a vehicle positional area."""
+    if not term:
+        return True
+    norm = normalize_arabic(term)
+    if norm in NON_GEO_LOCATIONS_NORM:
+        return True
+    for pos in ["الخلف", "الامام", "المقعد", "السياره", "المركبه"]:
+        if pos in norm:
+            return True
+    return False
+
+
+# Car action verbs for intent verification & adjustment continuity
+CAR_ACTION_VERBS = {
+    "شغل", "تشغيل", "ولع", "توليع", "فعل", "تفعيل", "بدا",
+    "طفي", "اطفي", "اطفئ", "اطفاء", "طف", "بند", "وقف", "اوقف", "ايقاف", "توقيف", "كتم",
+    "افتح", "فتح", "فك", "سكر", "صك", "قفل", "اغلق", "غلق",
+    "علي", "اعلي", "رفع", "ارفع", "زود", "زيد", "كبر", "سرع", "دفي", "دفئ", "سخن",
+    "وطي", "قصر", "خفض", "اخفض", "نقص", "قلل", "هدي", "رخي", "نزل", "هبط", "برد",
+    "اضبط", "ضبط", "حط", "خلي", "اجعل", "سوا", "عيير",
+}
+
+# Courtesy prefix pattern supported across car command regexes
+COURTESY_PREFIX_PATTERN = r"(?:لو سمحت|لو سمحتي|من فضلك|من فضلكي|بالله|ياريت|يا ريت|تكفى|تكفي|لاهنت|لا هنت)"
+CP = rf"(?:({COURTESY_PREFIX_PATTERN})[,،]?\s+)?"
 
 
 # Canonical Arabic device nouns used when referencing a car target
@@ -222,20 +267,27 @@ class FSMMemory:
             # Merge entities intelligently
             for k, v in new_entities.items():
                 if v is not None:
+                    if k == "location" and _is_non_geo_location(str(v)):
+                        continue
                     self.entities[k] = v
 
             # If location wasn't in entities but is present in user text, extract it
+            # Only extract location if NOT a car command and state is not car_control
             norm_input = normalize_arabic(user_text or "")
-            if "location" not in new_entities:
+            if (
+                "location" not in new_entities
+                and not self._is_car_command(user_text, norm_input)
+                and intent != "car_control"
+                and self.state != "car_control"
+            ):
                 loc_match = re.search(r"\bفي\s+([^\s?؟]+(?:\s+[^\s?؟]+)?)", user_text or "")
                 if loc_match:
                     candidate = loc_match.group(1).strip()
-                    norm_cand = normalize_arabic(candidate)
-                    if norm_cand not in ["السياره", "البيت", "طريق", "العالم", "هناك", "نفس المكان"]:
+                    if not _is_non_geo_location(candidate):
                         self.entities["location"] = candidate
                 else:
                     detected_loc = _extract_location_entity(norm_input)
-                    if detected_loc:
+                    if detected_loc and not _is_non_geo_location(detected_loc):
                         self.entities["location"] = detected_loc
 
             # Detect vehicle target & specific device name mentioned in user speech
@@ -293,12 +345,63 @@ class FSMMemory:
         return loc is not None
 
     def _has_explicit_car_target(self, norm_text: str) -> bool:
-        """Checks if the user utterance already mentions a car device target."""
+        """Checks if the user utterance already mentions a car device target or vehicle noun."""
         for target, kws in CAR_TARGETS.items():
             for kw in kws:
                 norm_kw = normalize_arabic(kw)
                 if re.search(rf"(?:^|\s){re.escape(norm_kw)}(?:\s|$)", norm_text):
                     return True
+        if any(w in norm_text.split() for w in ["السياره", "سياره", "مركبه", "المركبه"]):
+            return True
+        return False
+
+    def _is_car_command(self, user_text: str, norm_text: Optional[str] = None) -> bool:
+        """
+        Detects whether an utterance is a car control command, car adjustment,
+        or vehicle-specific query to avoid cross-domain bleeding.
+        """
+        if not user_text:
+            return False
+        if norm_text is None:
+            norm_text = normalize_arabic(user_text)
+
+        # 1. Explicit car target or vehicle noun in utterance
+        if self._has_explicit_car_target(norm_text):
+            return True
+
+        # 2. Car control pronoun / adjustment regex patterns (e.g. "زود فيه", "قصر فيه", "وطي له")
+        if re.search(
+            r"\b(وطي|قصر|علي|عل|زود|زيد|نقص|اخفض|خفض|ارفع)\s+(له|لها|فيه|فيها|عليه|عليها)\b",
+            norm_text,
+        ):
+            return True
+
+        # Attached pronouns: "سكرها", "طفه", "شغله", "قصره", "ارفعها", "نزله", etc.
+        if re.search(
+            r"\b(سكر|صك|قفل|اغلق|غلق|افتح|فك|طفي|اطفي|طف|اطف|بند|شغل|ولع|نزل|ارفع|هبط|وطي|قصر|اخفض|خفض|علي|عل|زود|زد|كبر)(ها|ه|يه|يها)\b",
+            norm_text,
+        ):
+            return True
+
+        # "خليه أبرد", "حطها على 22", "اجعله بارد"
+        if re.search(r"\b(خليه|خليها|اجعله|اجعلها|حطه|حطها)\b", norm_text):
+            return True
+
+        # "نفسه" / "نفسها" with action verbs
+        if re.search(r"\b(طفي|اطفي|شغل|سكر|قفل|افتح|فك)\s+(نفسه|نفسها)\b", norm_text):
+            return True
+
+        # Comparative AC adjectives: "أبرد", "ابرد", "أسخن", "اسخن", "أدفى", "ادفى", "أحر", "احر"
+        if re.search(r"\b(ابرد|أبرد|اسخن|أسخن|ادفى|أدفى|احر|أحر)\b", norm_text):
+            return True
+
+        # 3. If car target or car_control state is active in context:
+        target = self.entities.get("target")
+        if target or self.state == "car_control":
+            words = set(norm_text.split())
+            if any(act_verb in words for act_verb in CAR_ACTION_VERBS):
+                return True
+
         return False
 
     def resolve_references(self, user_text: str) -> str:
@@ -322,16 +425,19 @@ class FSMMemory:
             # 1. Locative / Knowledge Coreference Resolution
             # -------------------------------------------------------------
             loc = self.entities.get("location")
+            is_car = self._is_car_command(user_text, norm_text)
+
             if loc and not self._has_explicit_location(norm_text):
                 # 1a. "هناك" / "هنالك"
                 # "في هناك" -> "في <loc>", "من هناك" -> "من <loc>", "الى هناك" -> "الى <loc>", "هناك" -> "في <loc>"
                 def replace_honak(m):
                     prefix = m.group(1) or ""
-                    prep = m.group(2)
+                    waw = m.group(2) or ""
+                    prep = m.group(3)
                     if prep:
-                        return f"{prefix}{prep} {loc}"
-                    if prefix.endswith("و"):
-                        return f"{prefix}في {loc}"
+                        return f"{prefix}{waw}{prep} {loc}"
+                    if waw:
+                        return f"{prefix}{waw}في {loc}"
                     return f"{prefix}في {loc}"
 
                 resolved = re.sub(
@@ -341,19 +447,20 @@ class FSMMemory:
                 )
 
                 # 1b. "فيها" / "فيه" (when location is active)
-                # "وفيها مطر؟" -> "وفي <loc> مطر؟", "فيها" -> "في <loc>"
-                def replace_fiha(m):
-                    prefix = m.group(1) or ""
-                    waw = m.group(2) or ""
-                    if waw:
-                        return f"{prefix}وفي {loc}"
-                    return f"{prefix}في {loc}"
+                # Prevent cross-intent entity bleeding: do NOT replace if it's a car command (e.g. "زود فيه", "قصر فيه")
+                if not is_car:
+                    def replace_fiha(m):
+                        prefix = m.group(1) or ""
+                        waw = m.group(2) or ""
+                        if waw:
+                            return f"{prefix}وفي {loc}"
+                        return f"{prefix}في {loc}"
 
-                resolved = re.sub(
-                    r"(^|\s)(و)?(فيها|فيه)(?=\s|[؟?!.,]|$)",
-                    replace_fiha,
-                    resolved,
-                )
+                    resolved = re.sub(
+                        r"(^|\s)(و)?(فيها|فيه)(?=\s|[؟?!.,]|$)",
+                        replace_fiha,
+                        resolved,
+                    )
 
                 # 1c. "نفس المكان" / "بنفس المكان" / "في نفس المكان"
                 def replace_nafs_makan(m):
@@ -379,8 +486,10 @@ class FSMMemory:
                 # 1e. Implicit location continuity:
                 # e.g., user asks "وكيف الطقس؟" or "كم الساعة؟" with no location mentioned
                 # If resolved text still has no location injected and contains weather/time keywords:
+                # Verify utterance is NOT a car command (e.g. "كم حرارة التكييف")
                 if (
-                    loc not in resolved
+                    not is_car
+                    and loc not in resolved
                     and any(kw in norm_text.split() for kw in WEATHER_TIME_KEYWORDS)
                 ):
                     punc = ""
@@ -399,73 +508,88 @@ class FSMMemory:
             )
 
             if target and device_name and not self._has_explicit_car_target(norm_text):
-                # 2a. "خليه أبرد" / "خليه ابرد" / "خليه على 22" / "خليه عالي"
+                # 2a. "خليه أبرد" / "خليه ابرد" / "خليه على 22" / "خليه عالي" (with optional courtesy prefix)
                 m_khaleeh = re.match(
-                    r"^\s*(خليه|خليها|اجعله|اجعلها|حطه|حطها)\s+(.*)$",
+                    rf"^\s*{CP}(خليه|خليها|اجعله|اجعلها|حطه|حطها)\s+(.*)$",
                     resolved,
                 )
                 if m_khaleeh:
-                    rest = m_khaleeh.group(2).strip()
-                    resolved = f"خلي {device_name} {rest}"
+                    courtesy = f"{m_khaleeh.group(1)} " if m_khaleeh.group(1) else ""
+                    rest = m_khaleeh.group(3).strip()
+                    resolved = f"{courtesy}خلي {device_name} {rest}"
 
                 # 2b. Comparative adjective only for AC: "أبرد", "ابرد", "أسخن", "اسخن", "ادفى"
                 elif target == "ac" and re.match(
-                    r"^\s*(أبرد|ابرد|أسخن|اسخن|أدفى|ادفى|أحر|احر|بارد|حار)(\s+.*)?$",
+                    rf"^\s*{CP}(أبرد|ابرد|أسخن|اسخن|أدفى|ادفى|أحر|احر|بارد|حار)(\s+.*)?$",
                     resolved,
                 ):
-                    clean = resolved.strip()
-                    resolved = f"خلي {device_name} {clean}"
+                    m = re.match(
+                        rf"^\s*{CP}(أبرد|ابرد|أسخن|اسخن|أدفى|ادفى|أحر|احر|بارد|حار)(\s+.*)?$",
+                        resolved,
+                    )
+                    courtesy = f"{m.group(1)} " if m.group(1) else ""
+                    adj = m.group(2)
+                    rest = (m.group(3) or "").strip()
+                    suffix = f" {rest}" if rest else ""
+                    resolved = f"{courtesy}خلي {device_name} {adj}{suffix}".strip()
 
                 # 2c. Attached object pronoun verbs:
                 # "سكرها" / "سكره" (close)
-                elif re.match(r"^\s*(سكر|صك|قفل|اغلق|غلق)(ها|ه)(\s+.*)?$", resolved):
-                    m = re.match(r"^\s*(سكر|صك|قفل|اغلق|غلق)(ها|ه)(\s+.*)?$", resolved)
-                    stem = m.group(1)
-                    rest = m.group(3) or ""
-                    resolved = f"{stem} {device_name}{rest}".strip()
+                elif re.match(rf"^\s*{CP}(سكر|صك|قفل|اغلق|غلق)(ها|ه)(\s+.*)?$", resolved):
+                    m = re.match(rf"^\s*{CP}(سكر|صك|قفل|اغلق|غلق)(ها|ه)(\s+.*)?$", resolved)
+                    courtesy = f"{m.group(1)} " if m.group(1) else ""
+                    stem = m.group(2)
+                    rest = m.group(4) or ""
+                    resolved = f"{courtesy}{stem} {device_name}{rest}".strip()
 
                 # "افتحها" / "افتحه" / "فكها" / "فكه" (open)
-                elif re.match(r"^\s*(افتح|فك)(ها|ه)(\s+.*)?$", resolved):
-                    m = re.match(r"^\s*(افتح|فك)(ها|ه)(\s+.*)?$", resolved)
-                    stem = m.group(1)
-                    rest = m.group(3) or ""
-                    resolved = f"{stem} {device_name}{rest}".strip()
+                elif re.match(rf"^\s*{CP}(افتح|فك)(ها|ه)(\s+.*)?$", resolved):
+                    m = re.match(rf"^\s*{CP}(افتح|فك)(ها|ه)(\s+.*)?$", resolved)
+                    courtesy = f"{m.group(1)} " if m.group(1) else ""
+                    stem = m.group(2)
+                    rest = m.group(4) or ""
+                    resolved = f"{courtesy}{stem} {device_name}{rest}".strip()
 
                 # "طفه" / "طفيه" / "طفها" / "طفيها" / "بنده" / "بندها" (turn off)
-                elif re.match(r"^\s*(طفي|اطفي|طف|اطف|بند)(ها|ه|يه|يها)(\s+.*)?$", resolved):
-                    m = re.match(r"^\s*(طفي|اطفي|طف|اطف|بند)(ها|ه|يه|يها)(\s+.*)?$", resolved)
-                    stem = "بند" if m.group(1) == "بند" else "طفي"
-                    rest = m.group(3) or ""
-                    resolved = f"{stem} {device_name}{rest}".strip()
+                elif re.match(rf"^\s*{CP}(طفي|اطفي|طف|اطف|بند)(ها|ه|يه|يها)(\s+.*)?$", resolved):
+                    m = re.match(rf"^\s*{CP}(طفي|اطفي|طف|اطف|بند)(ها|ه|يه|يها)(\s+.*)?$", resolved)
+                    courtesy = f"{m.group(1)} " if m.group(1) else ""
+                    stem = "بند" if m.group(2) == "بند" else "طفي"
+                    rest = m.group(4) or ""
+                    resolved = f"{courtesy}{stem} {device_name}{rest}".strip()
 
                 # "شغلها" / "شغله" / "ولعها" / "ولعه" (turn on)
-                elif re.match(r"^\s*(شغل|ولع)(ها|ه)(\s+.*)?$", resolved):
-                    m = re.match(r"^\s*(شغل|ولع)(ها|ه)(\s+.*)?$", resolved)
-                    stem = m.group(1)
-                    rest = m.group(3) or ""
-                    resolved = f"{stem} {device_name}{rest}".strip()
+                elif re.match(rf"^\s*{CP}(شغل|ولع)(ها|ه)(\s+.*)?$", resolved):
+                    m = re.match(rf"^\s*{CP}(شغل|ولع)(ها|ه)(\s+.*)?$", resolved)
+                    courtesy = f"{m.group(1)} " if m.group(1) else ""
+                    stem = m.group(2)
+                    rest = m.group(4) or ""
+                    resolved = f"{courtesy}{stem} {device_name}{rest}".strip()
 
                 # "نزلها" / "نزله" / "ارفعها" / "ارفعه" (raise/lower)
-                elif re.match(r"^\s*(نزل|ارفع|هبط)(ها|ه)(\s+.*)?$", resolved):
-                    m = re.match(r"^\s*(نزل|ارفع|هبط)(ها|ه)(\s+.*)?$", resolved)
-                    stem = m.group(1)
-                    rest = m.group(3) or ""
-                    resolved = f"{stem} {device_name}{rest}".strip()
+                elif re.match(rf"^\s*{CP}(نزل|ارفع|هبط)(ها|ه)(\s+.*)?$", resolved):
+                    m = re.match(rf"^\s*{CP}(نزل|ارفع|هبط)(ها|ه)(\s+.*)?$", resolved)
+                    courtesy = f"{m.group(1)} " if m.group(1) else ""
+                    stem = m.group(2)
+                    rest = m.group(4) or ""
+                    resolved = f"{courtesy}{stem} {device_name}{rest}".strip()
 
                 # "وطيه" / "وطيها" / "قصره" / "قصرها" (decrease)
-                elif re.match(r"^\s*(وطي|قصر|اخفض|خفض)(ها|ه|يه|يها)(\s+.*)?$", resolved):
-                    m = re.match(r"^\s*(وطي|قصر|اخفض|خفض)(ها|ه|يه|يها)(\s+.*)?$", resolved)
-                    stem = m.group(1)
-                    rest = m.group(3) or ""
-                    resolved = f"{stem} {device_name}{rest}".strip()
+                elif re.match(rf"^\s*{CP}(وطي|قصر|اخفض|خفض)(ها|ه|يه|يها)(\s+.*)?$", resolved):
+                    m = re.match(rf"^\s*{CP}(وطي|قصر|اخفض|خفض)(ها|ه|يه|يها)(\s+.*)?$", resolved)
+                    courtesy = f"{m.group(1)} " if m.group(1) else ""
+                    stem = m.group(2)
+                    rest = m.group(4) or ""
+                    resolved = f"{courtesy}{stem} {device_name}{rest}".strip()
 
                 # "عليه شوية" / "عليه" (increase volume or raise setting)
-                elif re.match(r"^\s*(علي|عل|ارف|ارفع|زود|زد|كبر)(ها|ه)(\s+.*)?$", resolved):
-                    m = re.match(r"^\s*(علي|عل|ارف|ارفع|زود|زد|كبر)(ها|ه)(\s+.*)?$", resolved)
-                    raw_stem = m.group(1)
+                elif re.match(rf"^\s*{CP}(علي|عل|ارف|ارفع|زود|زد|كبر)(ها|ه)(\s+.*)?$", resolved):
+                    m = re.match(rf"^\s*{CP}(علي|عل|ارف|ارفع|زود|زد|كبر)(ها|ه)(\s+.*)?$", resolved)
+                    courtesy = f"{m.group(1)} " if m.group(1) else ""
+                    raw_stem = m.group(2)
                     stem = "علي" if raw_stem in ["علي", "عل"] else raw_stem
-                    rest = m.group(3) or ""
-                    resolved = f"{stem} {device_name}{rest}".strip()
+                    rest = m.group(4) or ""
+                    resolved = f"{courtesy}{stem} {device_name}{rest}".strip()
 
                 # 2d. Preposition + pronoun expressions: "قصر عليه", "ارفع عليه"
                 elif re.search(r"\b(قصر|وطي|اخفض|ارفع|علي|زيد|زود)\s+عل(يه|يها)(\s+.*)?$", resolved):
@@ -480,15 +604,21 @@ class FSMMemory:
 
                 # 2e. "له" / "لها" / "فيه" / "فيها" following action verbs
                 # e.g., "وطي له", "علي له", "قصر له", "زود فيه"
-                elif re.search(r"\b(وطي|قصر|علي|زود|نقص|اخفض)\s+(له|لها|فيه|فيها)(\s+.*)?$", resolved):
-                    m = re.search(r"\b(وطي|قصر|علي|زود|نقص|اخفض)\s+(له|لها|فيه|فيها)(\s+.*)?$", resolved)
+                elif re.search(r"\b(وطي|قصر|علي|زود|زيد|نقص|اخفض)\s+(له|لها|فيه|فيها)(\s+.*)?$", resolved):
+                    m = re.search(r"\b(وطي|قصر|علي|زود|زيد|نقص|اخفض)\s+(له|لها|فيه|فيها)(\s+.*)?$", resolved)
                     stem = m.group(1)
                     prep_word = m.group(2)
                     rest = m.group(3) or ""
-                    if "في" in prep_word:
-                        resolved = f"{stem} في {device_name}{rest}".strip()
-                    else:
-                        resolved = f"{stem} {device_name}{rest}".strip()
+                    replacement = (
+                        f"{stem} في {device_name}{rest}".strip()
+                        if "في" in prep_word
+                        else f"{stem} {device_name}{rest}".strip()
+                    )
+                    resolved = re.sub(
+                        r"\b(وطي|قصر|علي|زود|زيد|نقص|اخفض)\s+(له|لها|فيه|فيها)(\s+.*)?$",
+                        replacement,
+                        resolved,
+                    )
 
                 # 2f. "نفسه" / "نفسها"
                 # e.g., "طفي نفسه", "شغل نفسه", "سكر نفسها"
@@ -496,6 +626,10 @@ class FSMMemory:
                     m = re.search(r"\b(طفي|اطفي|شغل|سكر|قفل|افتح|فك)\s+(نفسه|نفسها)(\s+.*)?$", resolved)
                     stem = m.group(1)
                     rest = m.group(3) or ""
-                    resolved = f"{stem} {device_name}{rest}".strip()
+                    resolved = re.sub(
+                        r"\b(طفي|اطفي|شغل|سكر|قفل|افتح|فك)\s+(نفسه|نفسها)(\s+.*)?$",
+                        f"{stem} {device_name}{rest}".strip(),
+                        resolved,
+                    )
 
             return resolved

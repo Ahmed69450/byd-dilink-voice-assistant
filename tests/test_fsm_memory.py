@@ -369,3 +369,122 @@ def test_fsm_thread_safety():
         t.join()
 
     assert len(errors) == 0
+
+
+def test_fsm_locative_preposition_preservation_min_honak():
+    """Verifies 'كم المسافة من هناك؟' preserves preposition 'من' rather than forcing 'في'."""
+    memory = FSMMemory()
+    memory.update(
+        "كم الساعة في مكة؟",
+        {"intent": "general_knowledge", "entities": {"location": "مكة"}},
+    )
+    resolved = memory.resolve_references("كم المسافة من هناك؟")
+    assert "من مكة" in resolved
+    assert "في مكة" not in resolved
+
+    # Also test "إلى هناك"
+    resolved_ila = memory.resolve_references("كيف الطريق إلى هناك؟")
+    assert "إلى مكة" in resolved_ila
+
+
+def test_fsm_locative_wa_honak():
+    """Verifies 'وهناك؟' resolves to 'وفي <loc>؟'."""
+    memory = FSMMemory()
+    memory.update(
+        "ما هو الطقس في باريس؟",
+        {"intent": "general_knowledge", "entities": {"location": "باريس"}},
+    )
+    resolved = memory.resolve_references("وهناك؟")
+    assert resolved == "وفي باريس؟"
+
+
+def test_fsm_car_command_fihi_resolves_to_target_not_city():
+    """Verifies car command with 'فيه' resolves to car target and prevents city bleeding."""
+    memory = FSMMemory()
+    # Turn 1: Discuss city
+    memory.update(
+        "كيف الجو في الرياض؟",
+        {"intent": "general_knowledge", "entities": {"location": "الرياض"}},
+    )
+    assert memory.get_context_entity("location") == "الرياض"
+
+    # Turn 2: Turn on AC
+    memory.update(
+        "شغل التكييف",
+        {"intent": "car_control", "entities": {"target": "ac", "action": "turn_on"}},
+    )
+    assert memory.get_context_entity("target") == "ac"
+
+    # Turn 3: "زود فيه" must resolve to car target, NOT previous city "الرياض"
+    resolved = memory.resolve_references("زود فيه")
+    assert "الرياض" not in resolved
+    assert "زود في التكييف" in resolved
+
+    # Also test "قصر فيه"
+    resolved_dec = memory.resolve_references("قصر فيه")
+    assert "الرياض" not in resolved_dec
+    assert "قصر في التكييف" in resolved_dec
+
+
+def test_fsm_car_command_courtesy_prefix():
+    """Verifies courtesy prefix 'لو سمحت خليه أبرد' resolves properly with prefix preserved."""
+    memory = FSMMemory()
+    memory.update(
+        "شغل التكييف",
+        {"intent": "car_control", "entities": {"target": "ac", "action": "turn_on"}},
+    )
+    resolved = memory.resolve_references("لو سمحت خليه أبرد")
+    assert "لو سمحت" in resolved
+    assert "التكييف" in resolved
+    assert "أبرد" in resolved or "ابرد" in resolved
+    assert "خلي التكييف" in resolved
+
+    # Additional courtesy check: "من فضلك سكرها" for window
+    memory.update(
+        "افتح النافذة",
+        {"intent": "car_control", "entities": {"target": "window", "action": "open"}},
+    )
+    res_courtesy_win = memory.resolve_references("من فضلك سكرها")
+    assert "من فضلك" in res_courtesy_win
+    assert "النافذة" in res_courtesy_win
+
+
+def test_fsm_car_positional_term_not_extracted_as_location():
+    """Verifies 'شغل التكييف في الخلف' does not set location entity to 'الخلف'."""
+    memory = FSMMemory()
+    memory.update(
+        "شغل التكييف في الخلف",
+        {"intent": "car_control", "entities": {"target": "ac", "action": "turn_on"}},
+    )
+    assert memory.get_context_entity("location") != "الخلف"
+    assert memory.get_context_entity("location") is None
+
+    # Verify when intent_data is None
+    memory2 = FSMMemory()
+    memory2.update("شغل التكييف في الخلف", None)
+    assert memory2.get_context_entity("location") != "الخلف"
+    assert memory2.get_context_entity("location") is None
+
+    # Verify when prior location exists, it is not overwritten with "الخلف"
+    memory3 = FSMMemory()
+    memory3.update(
+        "كيف الطقس في الرياض؟",
+        {"intent": "general_knowledge", "entities": {"location": "الرياض"}},
+    )
+    memory3.update(
+        "شغل التكييف في الخلف",
+        {"intent": "car_control", "entities": {"target": "ac", "action": "turn_on"}},
+    )
+    assert memory3.get_context_entity("location") == "الرياض"
+
+
+def test_fsm_implicit_location_does_not_hijack_ac_temperature():
+    """Verifies 'كم حرارة التكييف' does not have previous city appended."""
+    memory = FSMMemory()
+    memory.update(
+        "كيف الطقس في دبي؟",
+        {"intent": "general_knowledge", "entities": {"location": "دبي"}},
+    )
+    resolved = memory.resolve_references("كم حرارة التكييف؟")
+    assert "دبي" not in resolved
+    assert "كم حرارة التكييف؟" == resolved

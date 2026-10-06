@@ -811,13 +811,31 @@ def _extract_car_entities(raw_text: str, norm_text: str) -> Dict[str, Any]:
     return entities
 
 
+# Positional car terms and non-geographic terms that should not be extracted as locations
+CAR_POSITIONAL_TERMS = {
+    "الخلف", "الامام", "الامامي", "الخلفي", "المقعد الخلفي", "المقعد الامامي",
+    "المقعد", "المقاعد", "السياره", "السيارة", "المركبه", "المركبة",
+    "الوسط", "قدام", "ورا", "وراء",
+    "يمين", "اليمين", "يسار", "اليسار", "السائق", "الراكب",
+    "الشنطه", "الشنطة", "الدرج",
+}
+NON_GEO_LOCATIONS = {
+    "السياره", "السيارة", "البيت", "طريق", "العالم", "هناك", "هنالك", "نفس المكان",
+} | CAR_POSITIONAL_TERMS
+NON_GEO_LOCATIONS_NORM = {normalize_arabic(t) for t in NON_GEO_LOCATIONS}
+
+
 def _extract_location_entity(norm_text: str) -> Optional[str]:
     """Extracts mentioned city/location from query if present (e.g. 'في الرياض')."""
     match = re.search(r"\bفي\s+([^\s?]+(?:\s+[^\s?]+)?)", norm_text)
     if match:
         loc = match.group(1).strip()
-        # Avoid non-location words
-        if loc not in ["السياره", "السيارة", "البيت", "طريق", "العالم"]:
+        norm_loc = normalize_arabic(loc)
+        # Avoid non-location words and car positional terms
+        if (
+            norm_loc not in NON_GEO_LOCATIONS_NORM
+            and not any(term in norm_loc for term in ["الخلف", "الامام", "المقعد", "السياره", "المركبه"])
+        ):
             return loc
     return None
 
