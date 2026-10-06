@@ -1,0 +1,318 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/main_root_layout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/byd_bg_dark"
+    android:padding="20dp">
+
+    <!-- Top Header & Automotive Status Bar -->
+    <LinearLayout
+        android:id="@+id/layout_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <TextView
+            android:id="@+id/tv_app_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/app_name"
+            android:textColor="@color/byd_text_primary"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:gravity="start|center_vertical" />
+
+        <!-- Status Badges for DiLink & Voice Engine -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <!-- DiLink Status -->
+            <View
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_status_dot_green" />
+
+            <TextView
+                android:id="@+id/tv_status_dilink"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/status_dilink_connected"
+                android:textColor="@color/byd_green_status"
+                android:textSize="13sp"
+                android:layout_marginEnd="16dp" />
+
+            <!-- Offline Mode Status -->
+            <View
+                android:layout_width="10dp"
+                android:layout_height="10dp"
+                android:layout_marginEnd="6dp"
+                android:background="@drawable/bg_status_dot_cyan" />
+
+            <TextView
+                android:id="@+id/tv_status_mode"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/status_mode_offline"
+                android:textColor="@color/byd_cyan"
+                android:textSize="13sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Scrollable Central Display Area -->
+    <ScrollView
+        android:id="@+id/scroll_content"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginBottom="16dp"
+        android:fillViewport="true"
+        app:layout_constraintTop_toBottomOf="@id/layout_header"
+        app:layout_constraintBottom_toTopOf="@id/layout_quick_chips"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <!-- Card 1: User Spoken Query -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_user_query"
+                style="@style/BYDAutomotiveCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="14dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="16dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/label_user_query"
+                        android:textColor="@color/byd_text_muted"
+                        android:textSize="14sp"
+                        android:textStyle="bold" />
+
+                    <TextView
+                        android:id="@+id/tv_user_query"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:text="@string/placeholder_user_query"
+                        android:textColor="@color/byd_text_primary"
+                        android:textSize="20sp"
+                        android:lineSpacingExtra="4dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Card 2: Assistant Spoken Response & Action -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/card_assistant_response"
+                style="@style/BYDAutomotiveCard"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="18dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/label_assistant_response"
+                            android:textColor="@color/byd_text_muted"
+                            android:textSize="14sp"
+                            android:textStyle="bold" />
+
+                        <!-- Recognized Intent Badge -->
+                        <TextView
+                            android:id="@+id/tv_intent_badge"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:background="@drawable/bg_badge_intent"
+                            android:text="جاهز"
+                            android:textColor="@color/byd_cyan"
+                            android:textSize="13sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+
+                    <!-- Main Spoken Response (Large Automotive Arabic Typography) -->
+                    <TextView
+                        android:id="@+id/tv_assistant_response"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:text="@string/placeholder_assistant_response"
+                        android:textColor="@color/byd_text_primary"
+                        android:textSize="24sp"
+                        android:textStyle="bold"
+                        android:lineSpacingExtra="6dp" />
+
+                    <!-- Divider -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginTop="16dp"
+                        android:layout_marginBottom="12dp"
+                        android:background="@color/byd_card_border" />
+
+                    <!-- Car Action Execution Status (CAN-Bus) -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/label_car_action"
+                            android:textColor="@color/byd_text_muted"
+                            android:textSize="13sp"
+                            android:layout_marginEnd="8dp" />
+
+                        <TextView
+                            android:id="@+id/tv_car_action_status"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/placeholder_car_action"
+                            android:textColor="@color/byd_cyan"
+                            android:textSize="15sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+        </LinearLayout>
+    </ScrollView>
+
+    <!-- Quick Action Chips for in-vehicle touch testing -->
+    <HorizontalScrollView
+        android:id="@+id/layout_quick_chips"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:scrollbars="none"
+        app:layout_constraintBottom_toTopOf="@id/btn_push_to_talk"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent">
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chip_group_quick_actions"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:singleLine="true">
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_ac"
+                style="@style/BYDAutomotiveChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/chip_ac_turn_on" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_cooler"
+                style="@style/BYDAutomotiveChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/chip_ac_cooler" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_windows"
+                style="@style/BYDAutomotiveChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/chip_windows_open" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_sunroof"
+                style="@style/BYDAutomotiveChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/chip_sunroof_open" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_volume"
+                style="@style/BYDAutomotiveChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/chip_volume_up" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_nav"
+                style="@style/BYDAutomotiveChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/chip_nav" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_weather"
+                style="@style/BYDAutomotiveChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/chip_weather" />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/chip_time"
+                style="@style/BYDAutomotiveChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/chip_time" />
+        </com.google.android.material.chip.ChipGroup>
+    </HorizontalScrollView>
+
+    <!-- Driver Push-To-Talk Button (Large 104dp Touch Target) -->
+    <ImageButton
+        android:id="@+id/btn_push_to_talk"
+        android:layout_width="104dp"
+        android:layout_height="104dp"
+        android:layout_marginBottom="8dp"
+        android:background="@drawable/bg_ptt_circle"
+        android:src="@drawable/ic_mic"
+        android:contentDescription="@string/ptt_idle"
+        android:elevation="10dp"
+        android:scaleType="centerInside"
+        app:layout_constraintBottom_toTopOf="@id/tv_ptt_status"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <!-- Current Assistant Status State Text -->
+    <TextView
+        android:id="@+id/tv_ptt_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/ptt_idle"
+        android:textColor="@color/byd_text_secondary"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+</androidx.constraintlayout.widget.ConstraintLayout>

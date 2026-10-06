@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Base Automotive Dark Theme -->
+    <style name="Theme.BYDVoiceAssistant" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/byd_cyan</item>
+        <item name="colorPrimaryDark">@color/byd_bg_dark</item>
+        <item name="colorAccent">@color/byd_cyan</item>
+        <item name="android:windowBackground">@color/byd_bg_dark</item>
+        <item name="android:statusBarColor">@color/byd_bg_dark</item>
+        <item name="android:navigationBarColor">@color/byd_bg_dark</item>
+        <item name="android:textColorPrimary">@color/byd_text_primary</item>
+        <item name="android:textColorSecondary">@color/byd_text_secondary</item>
+    </style>
+
+    <!-- Automotive Card Style -->
+    <style name="BYDAutomotiveCard" parent="Widget.MaterialComponents.CardView">
+        <item name="cardBackgroundColor">@color/byd_card_bg</item>
+        <item name="cardCornerRadius">16dp</item>
+        <item name="cardElevation">6dp</item>
+        <item name="strokeColor">@color/byd_card_border</item>
+        <item name="strokeWidth">1.5dp</item>
+    </style>
+
+    <!-- Automotive Action Chip Style -->
+    <style name="BYDAutomotiveChip" parent="Widget.MaterialComponents.Chip.Action">
+        <item name="chipBackgroundColor">@color/byd_card_bg</item>
+        <item name="chipStrokeColor">@color/byd_cyan</item>
+        <item name="chipStrokeWidth">1dp</item>
+        <item name="android:textColor">@color/byd_cyan</item>
+        <item name="chipCornerRadius">14dp</item>
+    </style>
+</resources>

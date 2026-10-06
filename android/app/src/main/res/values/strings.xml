@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">مساعد BYD DiLink الصوتي</string>
+    <string name="byd_brand">BYD DiLink Intelligent Assistant</string>
+    <string name="status_dilink_connected">نظام السيارة: متصل</string>
+    <string name="status_voice_engine_ready">المحرك الصوتي: جاهز</string>
+    <string name="status_mode_offline">محلي 100%</string>
+    
+    <!-- PTT States -->
+    <string name="ptt_idle">اضغط للتحدث</string>
+    <string name="ptt_listening">جاري الاستماع…</string>
+    <string name="ptt_processing">جاري المعالجة…</string>
+    <string name="ptt_speaking">جاري الرد بالصوت…</string>
+    
+    <!-- Input & Output Labels -->
+    <string name="label_user_query">الأمر المنطوق:</string>
+    <string name="placeholder_user_query">تحدث بأمر صوتي للسيارة، أو اختر من الأوامر السريعة بالأسفل…</string>
+    <string name="label_assistant_response">رد المساعد:</string>
+    <string name="placeholder_assistant_response">مرحباً بك! أنا مساعدك الصوتي الذكي في سيارة BYD DiLink. كيف يمكنني مساعدتك اليوم؟</string>
+    <string name="label_car_action">إجراء السيارة (CAN-Bus):</string>
+    <string name="placeholder_car_action">جاهز لاستقبال الأوامر</string>
+    
+    <!-- Quick Sample Chips for in-car testing -->
+    <string name="chip_ac_turn_on">شغل التكييف على 22</string>
+    <string name="chip_ac_cooler">أبرد شوي</string>
+    <string name="chip_windows_open">افتح جميع النوافذ</string>
+    <string name="chip_sunroof_open">افتح فتحة السقف</string>
+    <string name="chip_volume_up">ارفع الصوت</string>
+    <string name="chip_nav">الملاحة إلى برج خليفة</string>
+    <string name="chip_time">كم الساعة الآن؟</string>
+    <string name="chip_weather">كيف الطقس في الرياض؟</string>
+</resources>
