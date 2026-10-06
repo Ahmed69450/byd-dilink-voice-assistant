@@ -54,6 +54,12 @@ def levenshtein_similarity(s1: str, s2: str) -> float:
     return max(0.0, 1.0 - (dist / max_len))
 
 
+SHORT_PARTICLES = {
+    "شو", "لا", "ما", "هل", "كم", "مين", "لو", "كي", "لن", "لم",
+    "عن", "من", "في", "او", "ثم", "بل", "قد"
+}
+
+
 DEFAULT_FALLBACK_PATTERNS: List[Dict[str, Any]] = [
     {
         "pattern": "من أنت",
@@ -163,23 +169,66 @@ class ChitchatEngine:
         if norm_query == cand:
             return 1.0
 
-        # Base sequence similarity and Levenshtein similarity
-        seq_sim = difflib.SequenceMatcher(None, norm_query, cand).ratio()
-        lev_sim = levenshtein_similarity(norm_query, cand)
-        score = max(seq_sim, lev_sim)
+        # Short queries or single grammatical particles cannot fuzzy-match non-identical candidates
+        if len(norm_query) <= 2 or norm_query in SHORT_PARTICLES:
+            return 0.0
 
-        # Exact phrase substring bonus (handles courtesy suffixes / prefixes)
-        if cand in norm_query:
-            sub_score = 0.50 + 0.50 * (len(cand) / len(norm_query))
-            score = max(score, sub_score)
-        elif norm_query in cand:
-            sub_score = 0.50 + 0.50 * (len(norm_query) / len(cand))
+        # Candidate single short particle cannot fuzzy match non-identical queries
+        if len(cand) <= 2 or cand in SHORT_PARTICLES:
+            return 0.0
+
+        # If both are single words, enforce strict typo tolerance (only distance <= 1 for words >= 4 chars)
+        if len(query_words) == 1 and len(cand_words) == 1:
+            if min(len(norm_query), len(cand)) <= 3:
+                return 0.0
+            dist = levenshtein_distance(norm_query, cand)
+            if dist <= 1:
+                return max(0.0, 1.0 - (dist / max(len(norm_query), len(cand))))
+            return 0.0
+
+        score = 0.0
+
+        # Word-boundary phrase containment checks (replaces raw substring checks)
+        # 1. Candidate phrase appears with word boundaries in query
+        cand_in_query = bool(re.search(rf'(?:^|\s){re.escape(cand)}(?:\s|$)', norm_query))
+        if cand_in_query:
+            if len(cand_words) >= 2:
+                sub_score = 0.50 + 0.50 * (len(cand) / len(norm_query))
+            else:
+                # No arbitrary +0.50 floor for single short words
+                sub_score = len(cand) / len(norm_query)
             score = max(score, sub_score)
 
-        # Word subset overlap (e.g. pattern words are fully present in query words)
+        # 2. Query phrase appears with word boundaries in candidate
+        query_in_cand = bool(re.search(rf'(?:^|\s){re.escape(norm_query)}(?:\s|$)', cand))
+        if query_in_cand:
+            if len(query_words) >= 2:
+                sub_score = 0.50 + 0.50 * (len(norm_query) / len(cand))
+            else:
+                # No arbitrary +0.50 floor for single short words
+                sub_score = len(norm_query) / len(cand)
+            score = max(score, sub_score)
+
+        # 3. Word subset overlap
         if cand_words and cand_words.issubset(query_words):
-            word_score = 0.55 + 0.45 * (len(cand_words) / len(query_words))
+            if len(cand_words) >= 2:
+                word_score = 0.55 + 0.45 * (len(cand_words) / len(query_words))
+            else:
+                word_score = len(cand_words) / len(query_words)
             score = max(score, word_score)
+
+        # 4. Multi-word fuzzy matching using significant matching blocks (min block size 3)
+        sm = difflib.SequenceMatcher(None, norm_query, cand)
+        sig_blocks = [b.size for b in sm.get_matching_blocks() if b.size >= 3]
+        cand_cov = sum(sig_blocks) / len(cand) if cand else 0.0
+
+        if cand_cov >= 0.70:
+            seq_sim = sm.ratio()
+            score = max(score, seq_sim)
+
+        lev_sim = levenshtein_similarity(norm_query, cand)
+        if lev_sim >= 0.75:
+            score = max(score, lev_sim)
 
         return min(1.0, score)
 

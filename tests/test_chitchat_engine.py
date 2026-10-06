@@ -359,3 +359,94 @@ def test_kaggle_script_cli_execution(tmp_path):
     assert len(loaded) == 1
     assert loaded[0]["pattern"] == "مرحبا"
 
+
+def test_chitchat_negative_car_commands():
+    """Car commands like 'شغل المحرك' and 'تبريد' do not trigger chitchat (score < 0.55)."""
+    engine = ChitchatEngine()
+
+    # "شغل المحرك" (car command: start engine) must score < 0.55 and return None
+    best_item_engine, score_engine = engine.get_best_match("شغل المحرك")
+    assert score_engine < 0.55, f"Expected score < 0.55 for 'شغل المحرك', got {score_engine}"
+    assert engine.get_response("شغل المحرك") is None
+
+    # "تبريد" (car command: cooling) must score < 0.55 and return None
+    best_item_cool, score_cool = engine.get_best_match("تبريد")
+    assert score_cool < 0.55, f"Expected score < 0.55 for 'تبريد', got {score_cool}"
+    assert engine.get_response("تبريد") is None
+
+
+def test_chitchat_negative_short_particles():
+    """Short particles like 'لا', 'شو', 'هل', 'ما' return None."""
+    engine = ChitchatEngine()
+    particles = ["لا", "شو", "هل", "ما"]
+
+    for particle in particles:
+        _, score = engine.get_best_match(particle)
+        assert score < 0.55, f"Particle '{particle}' scored {score} >= 0.55"
+        assert engine.get_response(particle) is None
+
+
+def test_kaggle_script_preserve_aliases_formatted_json(tmp_path):
+    """Preserves and merges aliases when formatting/merging JSON files."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+    import fetch_kaggle_chitchat
+
+    json_file = tmp_path / "formatted_input.json"
+    data = [
+        {
+            "pattern": "من أنت",
+            "aliases": ["مين انت", "عرفني بنفسك"],
+            "responses": ["أنا المساعد الصوتي بي واي دي"]
+        },
+        {
+            "pattern": "من أنت",
+            "aliases": ["ما اسمك"],
+            "responses": ["أنا رفيقك الصوتي"]
+        }
+    ]
+    json_file.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    parsed = fetch_kaggle_chitchat.parse_dataset_file(str(json_file))
+    assert len(parsed) == 1
+    item = parsed[0]
+    assert item["pattern"] == "من أنت"
+    assert "مين انت" in item["aliases"]
+    assert "عرفني بنفسك" in item["aliases"]
+    assert "ما اسمك" in item["aliases"]
+    assert len(item["responses"]) == 2
+
+
+def test_kaggle_script_overwrite_protection(tmp_path):
+    """Scripts CLI prevents accidental overwriting of existing output file without --merge or --overwrite."""
+    import subprocess
+
+    input_csv = tmp_path / "in.csv"
+    input_csv.write_text("question,answer\nمرحبا,أهلاً بك\n", encoding="utf-8")
+    existing_output = tmp_path / "existing.json"
+    existing_output.write_text("[]", encoding="utf-8")
+
+    script_path = Path(__file__).resolve().parent.parent / "scripts" / "fetch_kaggle_chitchat.py"
+
+    # Running without --merge or --overwrite must fail (exit code 1)
+    cmd_fail = [
+        sys.executable,
+        str(script_path),
+        "--input", str(input_csv),
+        "--output", str(existing_output)
+    ]
+    res_fail = subprocess.run(cmd_fail, capture_output=True, text=True)
+    assert res_fail.returncode == 1
+    assert "already exists" in res_fail.stdout or "already exists" in res_fail.stderr
+
+    # Running with --overwrite must succeed
+    cmd_ok = [
+        sys.executable,
+        str(script_path),
+        "--input", str(input_csv),
+        "--output", str(existing_output),
+        "--overwrite"
+    ]
+    res_ok = subprocess.run(cmd_ok, capture_output=True, text=True)
+    assert res_ok.returncode == 0
+
+
