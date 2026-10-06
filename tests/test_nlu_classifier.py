@@ -1,5 +1,5 @@
 import pytest
-from nlu_classifier import normalize_arabic, classify_intent
+from nlu_classifier import normalize_arabic, classify_intent, extract_numeric_value
 
 
 # =====================================================================
@@ -276,3 +276,60 @@ def test_written_arabic_numbers():
     assert res["intent"] == "car_control"
     assert res["entities"].get("target") == "ac"
     assert res["entities"].get("value") == 25
+
+
+def test_classify_volume_set_action():
+    # "اضبط الصوت على 15" -> target="volume", action="set", value=15
+    res = classify_intent("اضبط الصوت على 15")
+    assert res["intent"] == "car_control"
+    assert res["entities"].get("target") == "volume"
+    assert res["entities"].get("action") == "set"
+    assert res["entities"].get("value") == 15
+
+    # "خلي الصوت على 20" -> target="volume", action="set", value=20
+    res2 = classify_intent("خلي الصوت على 20")
+    assert res2["intent"] == "car_control"
+    assert res2["entities"].get("target") == "volume"
+    assert res2["entities"].get("action") == "set"
+    assert res2["entities"].get("value") == 20
+
+    # Ensure preposition "على" followed by number does not trigger "increase"
+    res3 = classify_intent("الصوت على 15")
+    assert res3["intent"] == "car_control"
+    assert res3["entities"].get("target") == "volume"
+    assert res3["entities"].get("action") != "increase"
+    assert res3["entities"].get("value") == 15
+
+
+def test_ana_bardan_does_not_trigger_ac_decrease():
+    # "انا بردان" -> does NOT trigger AC decrease ("برد")
+    res = classify_intent("انا بردان")
+    assert not (
+        res.get("intent") == "car_control"
+        and res.get("entities", {}).get("target") == "ac"
+        and res.get("entities", {}).get("action") == "decrease"
+    )
+    assert res["intent"] == "chitchat"
+
+
+def test_dialect_numbers():
+    # Spoken dialect numbers: "تلاتين" (30), "تمانية" (8), "تلاتة" (3), "تمانين" (80)
+    assert extract_numeric_value("تلاتين") == 30
+    assert extract_numeric_value("تمانية") == 8
+    assert extract_numeric_value("تلاتة") == 3
+    assert extract_numeric_value("تلات") == 3
+    assert extract_numeric_value("تمان") == 8
+    assert extract_numeric_value("تمانين") == 80
+    assert extract_numeric_value("خمسة وتلاتين") == 35
+
+    # Integrated into intent classification
+    res1 = classify_intent("اضبط الصوت على تلاتين")
+    assert res1["intent"] == "car_control"
+    assert res1["entities"].get("target") == "volume"
+    assert res1["entities"].get("action") == "set"
+    assert res1["entities"].get("value") == 30
+
+    res2 = classify_intent("اضبط التكييف على تمانية وعشرين")
+    assert res2["intent"] == "car_control"
+    assert res2["entities"].get("target") == "ac"
+    assert res2["entities"].get("value") == 28

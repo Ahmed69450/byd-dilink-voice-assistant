@@ -93,6 +93,8 @@ ARABIC_WORDS_RAW = {
     "اثنان": 2,
     "ثلاثة": 3,
     "ثلاث": 3,
+    "تلاتة": 3,
+    "تلات": 3,
     "اربعة": 4,
     "اربع": 4,
     "خمسة": 5,
@@ -103,6 +105,8 @@ ARABIC_WORDS_RAW = {
     "سبع": 7,
     "ثمانية": 8,
     "ثمان": 8,
+    "تمانية": 8,
+    "تمان": 8,
     "تسعة": 9,
     "تسع": 9,
     "عشرة": 10,
@@ -121,6 +125,7 @@ ARABIC_WORDS_RAW = {
     "عشرون": 20,
     "ثلاثين": 30,
     "ثلاثون": 30,
+    "تلاتين": 30,
     "اربعين": 40,
     "اربعون": 40,
     "خمسين": 50,
@@ -131,6 +136,7 @@ ARABIC_WORDS_RAW = {
     "سبعون": 70,
     "ثمانين": 80,
     "ثمانون": 80,
+    "تمانين": 80,
     "تسعين": 90,
     "تسعون": 90,
     "مئة": 100,
@@ -160,7 +166,7 @@ def extract_numeric_value(text: str) -> Optional[int]:
     norm = normalize_arabic(text)
     # Check compound (units + "و" + tens)
     compound_match = re.search(
-        r"\b(واحد|اثنين|اثنان|ثلاثه|ثلاث|اربعه|اربع|خمسه|خمس|سته|ست|سبعه|سبع|ثمانيه|ثمان|تسعه|تسع)\s+و\s*(عشرين|عشرون|ثلاثين|ثلاثون|اربعين|اربعون|خمسين|خمسون|ستين|ستون|سبعين|سبعون|ثمانين|ثمانون|تسعين|تسعون)\b",
+        r"\b(واحد|اثنين|اثنان|ثلاثه|ثلاث|تلاته|تلات|اربعه|اربع|خمسه|خمس|سته|ست|سبعه|سبع|ثمانيه|ثمان|تمانيه|تمان|تسعه|تسع)\s+و\s*(عشرين|عشرون|ثلاثين|ثلاثون|تلاتين|اربعين|اربعون|خمسين|خمسون|ستين|ستون|سبعين|سبعون|ثمانين|ثمانون|تمانين|تسعين|تسعون)\b",
         norm,
     )
     if compound_match:
@@ -284,7 +290,6 @@ CAR_TARGETS = {
         "mute",
     ],
     "media": [
-        "اغاني",
         "اغاني",
         "اغنيه",
         "اغنية",
@@ -454,7 +459,7 @@ CHITCHAT_PATTERNS = [
     r"\b(شكرا|شكراً|مشكور|تسلم|يعطيك العافيه|ما قصرت|عشت|كفو|الف شكر)\b",
     r"\b(مع السلامه|مع السلامة|باي|وداعا|وداعاً|الي اللقاء|اشوفك علي خير|تصبح علي خير)\b",
     r"\b(نكته|نكتة|قل لي نكته|احكي لي نكته|ضحكني|سولف معي|احكي قصه)\b",
-    r"\b(طفشان|زهقان|ملل|تعبان|حزين|فرحان|احبك|انت ذكي|انت رائع|انت رهيب)\b",
+    r"\b(طفشان|زهقان|ملل|تعبان|حزين|فرحان|بردان|حران|احبك|انت ذكي|انت رائع|انت رهيب)\b",
 ]
 
 GK_PATTERNS = [
@@ -664,6 +669,37 @@ _TFIDF_MODEL = TfidfClassifier(TRAINING_DATA)
 # Entity Extraction for Car Control & General Knowledge
 # =====================================================================
 
+def _is_ali_increase(norm_text: str) -> bool:
+    """
+    Checks if 'علي' in norm_text functions as the verb 'علّي' (increase/raise),
+    rather than the preposition 'على' (which normalizes to 'علي').
+    Preposition indicators (does NOT trigger 'increase'):
+    - Preceded by a set or control verb ('اضبط', 'ضبط', 'حط', 'خلي', 'اجعل', etc.)
+    - Followed by a number (digit, Arabic number word, or prefix like 'درجه'/'مستوي' followed by number)
+    """
+    SET_OR_CONTROL_VERBS = {
+        "اضبط", "ضبط", "حط", "خلي", "اجعل", "سوا", "عيير",
+        "وطي", "قصر", "خفض", "اخفض", "نقص", "نزل", "رخي",
+    }
+    words = norm_text.split()
+    for idx, w in enumerate(words):
+        if w == "علي":
+            # 1. Preceded by a set or control verb anywhere earlier in the sentence
+            if any(prev in SET_OR_CONTROL_VERBS for prev in words[:idx]):
+                continue
+            # 2. Followed by a number
+            if idx + 1 < len(words):
+                next_word = words[idx + 1]
+                if next_word.isdigit() or next_word in ARABIC_WORDS_TO_NUM:
+                    continue
+                if next_word in ["درجه", "درجة", "مستوي", "مستوى", "رقم", "حد"] and idx + 2 < len(words):
+                    after_next = words[idx + 2]
+                    if after_next.isdigit() or after_next in ARABIC_WORDS_TO_NUM:
+                        continue
+            return True
+    return False
+
+
 def _extract_car_entities(raw_text: str, norm_text: str) -> Dict[str, Any]:
     """
     Extracts car_control entities:
@@ -699,7 +735,7 @@ def _extract_car_entities(raw_text: str, norm_text: str) -> Dict[str, Any]:
 
     # Contextual target inference from verbs if target not explicitly mentioned
     if not detected_target:
-        if any(w in norm_text for w in ["برد الجو", "برد السياره", "برد", "دفي الجو", "دفي السياره", "دفي", "دفئ الجو", "دفئ السياره", "دفئ", "سخن الجو", "سخن"]):
+        if any(re.search(rf"(?:^|\s){re.escape(w)}(?:\s|$)", norm_text) for w in ["برد الجو", "برد السياره", "برد", "دفي الجو", "دفي السياره", "دفي", "دفئ الجو", "دفئ السياره", "دفئ", "سخن الجو", "سخن"]):
             detected_target = "ac"
         elif any(w in norm_text for w in ["نزل الجامه", "نزل الشباك", "ارفع الجامه", "ارفع الشباك", "ارفع القزاز", "نزل القزاز"]):
             detected_target = "window"
@@ -726,9 +762,11 @@ def _extract_car_entities(raw_text: str, norm_text: str) -> Dict[str, Any]:
     elif detected_target == "volume":
         if any(w in norm_text for w in ["كتم", "ميوت", "طفي", "وقف", "صامت"]):
             detected_action = "turn_off"
-        elif any(w in norm_text for w in ["وطي", "قصر", "خفض", "اخفض", "نقص", "نزل", "رخي"]):
+        elif any(re.search(rf"(?:^|\s){re.escape(w)}(?:\s|$)", norm_text) for w in ["اضبط", "ضبط", "حط", "خلي", "اجعل"]):
+            detected_action = "set"
+        elif any(re.search(rf"(?:^|\s){re.escape(w)}(?:\s|$)", norm_text) for w in ["وطي", "قصر", "خفض", "اخفض", "نقص", "نزل", "رخي"]):
             detected_action = "decrease"
-        elif any(w in norm_text for w in ["اعلي", "ارفع", "زود", "زيد", "كبر"]) or re.search(r"(?:^|\s)علي(?:\s|$)", norm_text):
+        elif any(re.search(rf"(?:^|\s){re.escape(w)}(?:\s|$)", norm_text) for w in ["اعلي", "ارفع", "زود", "زيد", "كبر"]) or _is_ali_increase(norm_text):
             detected_action = "increase"
     elif detected_target == "ac":
         if any(w in norm_text for w in ["طفي", "اطفي", "اطفئ", "بند"]):
@@ -737,7 +775,7 @@ def _extract_car_entities(raw_text: str, norm_text: str) -> Dict[str, Any]:
             detected_action = "turn_on"
         elif any(w in norm_text for w in ["اضبط", "ضبط", "حط", "خلي", "اجعل"]):
             detected_action = "set"
-        elif any(w in norm_text for w in ["برد", "سقع", "وطي", "خفض", "اخفض", "نقص", "نزل"]):
+        elif any(re.search(rf"(?:^|\s){re.escape(w)}(?:\s|$)", norm_text) for w in ["برد", "سقع", "وطي", "خفض", "اخفض", "نقص", "نزل"]):
             detected_action = "decrease"
         elif any(w in norm_text for w in ["دفي", "دفئ", "سخن", "اعلي", "ارفع", "زود"]):
             detected_action = "increase"
@@ -748,6 +786,8 @@ def _extract_car_entities(raw_text: str, norm_text: str) -> Dict[str, Any]:
         for act in ["turn_off", "turn_on", "set", "increase", "decrease", "open", "close"]:
             for kw in CAR_ACTIONS[act]:
                 norm_kw = normalize_arabic(kw)
+                if norm_kw == "علي" and not _is_ali_increase(norm_text):
+                    continue
                 if re.search(rf"(?:^|\s){re.escape(norm_kw)}(?:\s|$)", norm_text):
                     # Adjust 'open'/'close' for electronic devices
                     if detected_target in ["light", "media", "ac"] and act == "open":
@@ -828,7 +868,7 @@ def classify_intent(text: str) -> Dict[str, Any]:
             is_car_control_rule = True
         elif has_car_target and ("value" in car_entities or car_entities.get("target") in ["navigation", "app"]):
             is_car_control_rule = True
-        elif has_car_target and any(w in norm_text for w in ["برد", "دفي", "دفئ", "سخن", "شوي", "خليه"]):
+        elif has_car_target and any(re.search(rf"(?:^|\s){re.escape(w)}(?:\s|$)", norm_text) for w in ["برد", "دفي", "دفئ", "سخن", "شوي", "خليه"]):
             is_car_control_rule = True
         elif any(phrase in norm_text for phrase in [
             "نزل الجامه", "سكر الشباك", "افتح الدريشه", "ارفع القزاز", "افتح فتحه السقف",
