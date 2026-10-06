@@ -87,6 +87,7 @@ def test_android_manifest_validity():
     assert "android.permission.INTERNET" in permissions
     assert "android.permission.ACCESS_NETWORK_STATE" in permissions
     assert "android.permission.MODIFY_AUDIO_SETTINGS" in permissions
+    assert "android.permission.QUERY_ALL_PACKAGES" in permissions
 
     # Check MainActivity configChanges for screen rotation
     activity = root.find(".//activity[@{http://schemas.android.com/apk/res/android}name='.MainActivity']")
@@ -94,6 +95,51 @@ def test_android_manifest_validity():
     config_changes = activity.attrib.get('{http://schemas.android.com/apk/res/android}configChanges', '')
     assert "orientation" in config_changes
     assert "screenSize" in config_changes
+
+
+def test_main_activity_deduplication_guard():
+    """Verify MainActivity includes atomic guard against duplicate/concurrent utterance processing."""
+    main_activity_path = os.path.join(REPO_ROOT, "android", "app", "src", "main", "java", "com", "byd", "voiceassistant", "MainActivity.kt")
+    assert os.path.isfile(main_activity_path)
+    with open(main_activity_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    assert "isProcessingUtterance" in content
+    assert "compareAndSet" in content
+
+
+def test_stt_engine_lifecycle_and_single_dispatch():
+    """Verify STTEngine cleans up native recognizer and protects against duplicate final result callbacks."""
+    stt_path = os.path.join(REPO_ROOT, "android", "app", "src", "main", "java", "com", "byd", "voiceassistant", "STTEngine.kt")
+    assert os.path.isfile(stt_path)
+    with open(stt_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    assert "hasDispatchedFinalResult" in content
+    assert "recognizer?.close()" in content
+    assert "speechService?.shutdown()" in content
+
+
+def test_tts_engine_onstop_implementation():
+    """Verify TTSEngine overrides onStop in UtteranceProgressListener to clean up on QUEUE_FLUSH."""
+    tts_path = os.path.join(REPO_ROOT, "android", "app", "src", "main", "java", "com", "byd", "voiceassistant", "TTSEngine.kt")
+    assert os.path.isfile(tts_path)
+    with open(tts_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    assert "override fun onStop(" in content
+    assert "releaseAudioFocus()" in content
+
+
+def test_build_gradle_layout_build_directory():
+    """Verify root build.gradle uses modern rootProject.layout.buildDirectory instead of deprecated buildDir."""
+    build_gradle_path = os.path.join(REPO_ROOT, "android", "build.gradle")
+    assert os.path.isfile(build_gradle_path)
+    with open(build_gradle_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    assert "rootProject.layout.buildDirectory" in content
+    assert "rootProject.buildDir" not in content
 
 
 def test_android_resources_xml_validity():

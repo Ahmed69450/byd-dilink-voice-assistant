@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Main Automotive UI & Integration Controller for BYD DiLink Voice Assistant.
@@ -46,6 +47,7 @@ class MainActivity : AppCompatActivity(), STTEngine.STTListener, CarControlBridg
     }
 
     private var currentState: AssistantState = AssistantState.IDLE
+    private val isProcessingUtterance = AtomicBoolean(false)
 
     // Core Engines
     private lateinit var carControlBridge: CarControlBridge
@@ -202,7 +204,14 @@ class MainActivity : AppCompatActivity(), STTEngine.STTListener, CarControlBridg
     fun processUserUtterance(rawText: String) {
         val trimmed = rawText.trim()
         if (trimmed.isEmpty()) {
+            isProcessingUtterance.set(false)
             setAssistantState(AssistantState.IDLE)
+            return
+        }
+
+        // Guard against duplicate / concurrent processing if onResult and onFinalResult both fire
+        if (!isProcessingUtterance.compareAndSet(false, true)) {
+            Log.w(TAG, "Already processing utterance, ignoring duplicate: $trimmed")
             return
         }
 
@@ -292,6 +301,9 @@ class MainActivity : AppCompatActivity(), STTEngine.STTListener, CarControlBridg
 
     private fun setAssistantState(state: AssistantState) {
         currentState = state
+        if (state == AssistantState.IDLE) {
+            isProcessingUtterance.set(false)
+        }
         when (state) {
             AssistantState.IDLE -> {
                 tvPttStatus.text = getString(R.string.ptt_idle)
@@ -400,6 +412,7 @@ class MainActivity : AppCompatActivity(), STTEngine.STTListener, CarControlBridg
 
     override fun onDestroy() {
         super.onDestroy()
+        isProcessingUtterance.set(false)
         ttsEngine.shutdown()
         sttEngine.destroy()
     }

@@ -96,6 +96,16 @@ class TTSEngine(
                 Log.d(TAG, "TTS completed utterance: $utteranceId")
             }
 
+            override fun onStop(utteranceId: String?, interrupted: Boolean) {
+                isSpeaking = false
+                releaseAudioFocus()
+                utteranceId?.let { id ->
+                    val cb = completionCallbacks.remove(id)
+                    cb?.invoke()
+                }
+                Log.d(TAG, "TTS stopped utterance: $utteranceId, interrupted: $interrupted")
+            }
+
             @Deprecated("Deprecated in Java")
             override fun onError(utteranceId: String?) {
                 isSpeaking = false

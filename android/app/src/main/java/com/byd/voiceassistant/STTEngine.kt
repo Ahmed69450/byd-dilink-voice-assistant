@@ -32,13 +32,16 @@ class STTEngine(
 
     interface STTListener {
         fun onReady() {}
-        fun onPartialResult(partialText: String)
-        fun onFinalResult(resultText: String)
-        fun onError(exception: Exception)
+        fun onPartialResult(partialText: String) {}
+        fun onResult(resultText: String) {}
+        fun onFinalResult(resultText: String) {}
+        fun onError(exception: Exception) {}
     }
 
     private var model: Model? = null
     private var speechService: SpeechService? = null
+    private var recognizer: Recognizer? = null
+    private var hasDispatchedFinalResult: Boolean = false
     var isListening: Boolean = false
         private set
     var isModelReady: Boolean = false
@@ -104,9 +107,20 @@ class STTEngine(
         }
 
         return try {
-            val recognizer = Recognizer(currentModel, SAMPLE_RATE)
-            speechService = SpeechService(recognizer, SAMPLE_RATE)
-            speechService?.startListening(this)
+            // Clean up previous service and recognizer instances to avoid native resource leaks
+            speechService?.stop()
+            speechService?.shutdown()
+            speechService = null
+            recognizer?.close()
+            recognizer = null
+
+            val rec = Recognizer(currentModel, SAMPLE_RATE)
+            recognizer = rec
+            val service = SpeechService(rec, SAMPLE_RATE)
+            speechService = service
+            hasDispatchedFinalResult = false
+
+            service.startListening(this)
             isListening = true
             Log.i(TAG, "STT listening started at $SAMPLE_RATE Hz")
             true
@@ -126,7 +140,6 @@ class STTEngine(
 
         try {
             speechService?.stop()
-            speechService = null
             isListening = false
             Log.i(TAG, "STT listening stopped")
         } catch (e: Exception) {
@@ -139,9 +152,12 @@ class STTEngine(
      */
     fun destroy() {
         try {
-            stopListening()
+            isListening = false
+            speechService?.stop()
             speechService?.shutdown()
             speechService = null
+            recognizer?.close()
+            recognizer = null
             model = null
             isModelReady = false
         } catch (e: Exception) {
@@ -161,14 +177,19 @@ class STTEngine(
         if (hypothesis.isNullOrBlank()) return
         val text = parseVoskJson(hypothesis, "text")
         if (text.isNotBlank()) {
-            listener?.onFinalResult(text)
+            listener?.onResult(text)
+            if (!hasDispatchedFinalResult) {
+                hasDispatchedFinalResult = true
+                listener?.onFinalResult(text)
+            }
         }
     }
 
     override fun onFinalResult(hypothesis: String?) {
         if (hypothesis.isNullOrBlank()) return
         val text = parseVoskJson(hypothesis, "text")
-        if (text.isNotBlank()) {
+        if (text.isNotBlank() && !hasDispatchedFinalResult) {
+            hasDispatchedFinalResult = true
             listener?.onFinalResult(text)
         }
     }
