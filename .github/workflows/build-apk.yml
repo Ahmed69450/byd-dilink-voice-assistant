@@ -1,0 +1,110 @@
+name: Build and Release BYD DiLink APK
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build DiLink APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Python dependencies
+        run: |
+          pip install requests
+
+      - name: Download Vosk Arabic Model
+        run: |
+          python scripts/download_vosk_model.py
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: '8.2'
+
+      - name: Build Debug APK
+        working-directory: android
+        run: |
+          gradle assembleDebug --no-daemon --stacktrace
+
+      - name: Prepare APK Release Artifact
+        run: |
+          mkdir -p release-output
+          cp android/app/build/outputs/apk/debug/app-debug.apk release-output/BYD-DiLink-VoiceAssistant-v1.0.0.apk
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: BYD-DiLink-VoiceAssistant-v1.0.0.apk
+          path: release-output/BYD-DiLink-VoiceAssistant-v1.0.0.apk
+          retention-days: 90
+
+      - name: Create or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
+        with:
+          tag_name: v1.0.0
+          name: "BYD DiLink Voice Assistant v1.0.0 (APK)"
+          body: |
+            ## 🚗 المساعد الصوتي لسيارات بي واي دي (BYD DiLink Voice Assistant) - الإصدار v1.0.0
+            
+            حزمة التثبيت الرسمية الأولى بصيغة **APK** المصممة خصيصاً لشاشات سيارات **BYD DiLink** (الإصدارات 3.0 / 4.0 / 5.0).
+            
+            ### 🌟 أبرز المزايا:
+            * **تحكم كامل وأصيل بالسيارة بدون إنترنت (Branch A):**
+              * التكييف (تشغيل، إطفاء، تعديل الحرارة، زيادة/خفض التبريد).
+              * النوافذ وفتحة السقف (فتح، إغلاق، الجامات الأمامية والخلفية).
+              * الوسائط ومستوى الصوت (تشغيل، إيقاف، التالي، السابق، خفض ورفع الصوت).
+              * الملاحة والتطبيقات (فتح الخرائط، إعدادات السيارة، تطبيق الطاقة والكاميرات 360).
+            * **معرفة عامة ومعلومات بيئية ذكية (Branch B):**
+              * طقس مباشر لأكثر من 40 مدينة عربية وعالمية عبر Open-Meteo.
+              * الوقت الدقيق للمدن مع استرجاع الوقت من ساعة السيارة في حال غياب الإنترنت.
+              * الأخبار، الحسابات الرياضية، والمعلومات العامة عبر DuckDuckGo و Wolfram Alpha.
+            * **سوالف وردود عربية تفاعلية بدون LLM (Branch C):**
+              * مطابقة نصوص تقريبية سريعة (Fuzzy Matching عبر Levenshtein) لردود طبيعية وسريعة الاستجابة.
+              * دعم واسع للهجات (الخليجية، الشامية، المصرية، العراقية) بجانب الفصحى.
+            * **توافق كامل مع شاشات BYD الدوارة:**
+              * تكيف فوري مع الوضعين الأفقي والعمودي دون انقطاع الاستماع أو إعادة تشغيل التطبيق.
+            * **خفض صوت المسجل الذكي (Audio Focus Ducking):**
+              * خفض صوت الموسيقى والراديو تلقائياً أثناء حديث المساعد ثم استعادته بسلاسة.
+            
+            ---
+            
+            ### 📦 خطوات التثبيت على شاشة BYD:
+            1. حمل ملف `BYD-DiLink-VoiceAssistant-v1.0.0.apk` المرفق أدناه.
+            2. **التثبيت عبر فلاش ميموري (USB):**
+               * انسخ ملف الـ APK إلى فلاش ميموري بنظام ملفات FAT32 أو NTFS.
+               * صِل الفلاش بمنفذ البيانات بالسيارة، وافتحه عبر مدير الملفات المدمج في DiLink وثبت التطبيق مباشرة.
+            3. **أو التثبيت عبر الـ ADB اللاسلكي:**
+               ```bash
+               adb connect <CAR_IP_ADDRESS>:5555
+               adb install -r BYD-DiLink-VoiceAssistant-v1.0.0.apk
+               ```
+          files: release-output/BYD-DiLink-VoiceAssistant-v1.0.0.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
