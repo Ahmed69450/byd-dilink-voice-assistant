@@ -58,6 +58,7 @@ jobs:
       - name: Build Debug APK
         working-directory: android
         run: |
+          set -o pipefail
           gradle :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee ../build.log
 
       - name: Upload Build Log Artifact
@@ -68,12 +69,15 @@ jobs:
           path: build.log
 
       - name: Prepare APK Release Artifact
+        if: always()
         run: |
+          echo "=== TAIL OF BUILD LOG ==="
+          tail -n 80 build.log || true
           mkdir -p release-output
           APK_FILE=$(find . -type f -name "*.apk" | head -n 1)
           if [ -z "$APK_FILE" ]; then
             echo "ERROR: No APK file found in build outputs!"
-            find . -type f
+            find . -type f -name "*.log"
             exit 1
           fi
           echo "Found APK at: $APK_FILE"
