@@ -58,7 +58,7 @@ jobs:
       - name: Build Debug APK
         working-directory: android
         run: |
-          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee ../build.log
+          gradle :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee ../build.log
 
       - name: Upload Build Log Artifact
         if: always()
@@ -73,7 +73,7 @@ jobs:
           APK_FILE=$(find . -type f -name "*.apk" | head -n 1)
           if [ -z "$APK_FILE" ]; then
             echo "ERROR: No APK file found in build outputs!"
-            find . -type d -name "build"
+            find . -type f
             exit 1
           fi
           echo "Found APK at: $APK_FILE"
@@ -131,5 +131,6 @@ jobs:
           files: release-output/BYD-DiLink-VoiceAssistant-v1.0.0.apk
           draft: false
           prerelease: false
+          make_latest: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
