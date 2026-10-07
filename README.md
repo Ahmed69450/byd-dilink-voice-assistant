@@ -6,7 +6,9 @@
 [![Python](https://img.shields.io/badge/Python-3.8+-brightgreen.svg)](https://www.python.org)
 [![Engine](https://img.shields.io/badge/Chaquopy-15.0.1-orange.svg)](https://chaquo.com/chaquopy/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-lightgrey.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/Tests-159%20Passing-success.svg)](tests/)
+[![Tests](https://img.shields.io/badge/Tests-165%20Passing-success.svg)](tests/)
+[![Download APK](https://img.shields.io/badge/Download-APK%20v1.0.0-success?style=for-the-badge&logo=android)](https://github.com/Ahmed69450/byd-dilink-voice-assistant/releases/download/v1.0.0/BYD-DiLink-VoiceAssistant-v1.0.0.apk)
+
 
 ---
 
