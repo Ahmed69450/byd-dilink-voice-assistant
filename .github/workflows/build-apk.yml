@@ -61,23 +61,22 @@ jobs:
           set -o pipefail
           gradle :app:assembleDebug --no-daemon --stacktrace 2>&1 | tee ../build.log
 
-      - name: Upload Build Log Artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gradle-build-log
-          path: build.log
+      - name: Push Build Log to Debug Branch on Failure
+        if: failure()
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git checkout -B debug-log
+          git add -f build.log
+          git commit -m "debug: add build log"
+          git push -f origin debug-log
 
       - name: Prepare APK Release Artifact
-        if: always()
         run: |
-          echo "=== TAIL OF BUILD LOG ==="
-          tail -n 80 build.log || true
           mkdir -p release-output
           APK_FILE=$(find . -type f -name "*.apk" | head -n 1)
           if [ -z "$APK_FILE" ]; then
             echo "ERROR: No APK file found in build outputs!"
-            find . -type f -name "*.log"
             exit 1
           fi
           echo "Found APK at: $APK_FILE"
